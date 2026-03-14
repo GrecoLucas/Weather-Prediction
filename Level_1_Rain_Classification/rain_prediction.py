@@ -7,6 +7,7 @@ from sklearn.preprocessing import LabelEncoder, StandardScaler
 from xgboost import XGBClassifier
 from lightgbm import LGBMClassifier
 import os
+import argparse
 
 def load_and_preprocess_data(filepath):
     """Loads dataset and performs initial preprocessing, cleaning, and feature engineering."""
@@ -67,9 +68,16 @@ def load_and_preprocess_data(filepath):
 
     return df_processed
 
-def get_models_and_params(scale_pos_weight=4.0):
-    """Returns one fixed hyperparameter configuration per model."""
-    return {
+def get_models_and_params(scale_pos_weight=4.0, model_family="all", profile="balanced"):
+    """Returns model configurations with optional family filtering and profile tuning."""
+    if profile == "recall":
+        xgb_scale_pos_weight = max(1.0, scale_pos_weight * 1.15)
+    elif profile == "precision":
+        xgb_scale_pos_weight = max(1.0, scale_pos_weight * 0.85)
+    else:
+        xgb_scale_pos_weight = max(1.0, scale_pos_weight)
+
+    all_models = {
         "RandomForest": (
             RandomForestClassifier(
                 random_state=42,
@@ -88,7 +96,7 @@ def get_models_and_params(scale_pos_weight=4.0):
         "XGBoost": (
             XGBClassifier(
                 random_state=42,
-                scale_pos_weight=scale_pos_weight,
+                scale_pos_weight=xgb_scale_pos_weight,
                 eval_metric='logloss',
                 n_estimators=400,
                 learning_rate=0.05,
@@ -130,6 +138,16 @@ def get_models_and_params(scale_pos_weight=4.0):
         )
     }
 
+    family_map = {
+        "all": ["RandomForest", "XGBoost", "LightGBM"],
+        "rf": ["RandomForest"],
+        "xgb": ["XGBoost"],
+        "lgbm": ["LightGBM"]
+    }
+
+    selected_names = family_map.get(model_family, family_map["all"])
+    return {name: all_models[name] for name in selected_names}
+
 
 def evaluate_split(model, X, y):
     """Returns F1, precision, recall, confusion matrix and classification report for one split."""
@@ -143,8 +161,8 @@ def evaluate_split(model, X, y):
     }
 
 
-def train_and_evaluate(df):
-    """Splits data (80/10/10), trains fixed model configs, and evaluates on all splits."""
+def train_and_evaluate(df, model_family="all", profile="balanced"):
+    """Splits data (80/10/10), trains model configs, and evaluates on all splits."""
     X = df.drop(columns=['rain_class'])
     y = df['rain_class']
 
@@ -159,7 +177,11 @@ def train_and_evaluate(df):
 
     # Compute class imbalance ratio for XGBoost
     scale_pos_weight = float((y_train == 0).sum() / (y_train == 1).sum())
-    models_params = get_models_and_params(scale_pos_weight=scale_pos_weight)
+    models_params = get_models_and_params(
+        scale_pos_weight=scale_pos_weight,
+        model_family=model_family,
+        profile=profile
+    )
 
     results = {}
     for name, (model, chosen_params) in models_params.items():
@@ -249,13 +271,25 @@ def generate_evaluation_report(results, split_sizes, output_path="model_metrics.
 
 
 if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description="Run rain classification pipeline and export metrics report.")
+    parser.add_argument("--dataset-path", default=None, help="Path to meteorology CSV dataset.")
+    parser.add_argument("--model-family", choices=["all", "rf", "xgb", "lgbm"], default="all")
+    parser.add_argument("--profile", choices=["balanced", "recall", "precision"], default="balanced")
+    parser.add_argument("--output-path", default=None, help="Path to save model metrics report.")
+    args = parser.parse_args()
+
     script_dir = os.path.dirname(os.path.abspath(__file__))
-    filepath = os.path.join(script_dir, "..", "metherology_dataset.csv")
+    default_dataset_path = os.path.join(script_dir, "..", "metherology_dataset.csv")
+    filepath = args.dataset_path if args.dataset_path else default_dataset_path
+    report_path = args.output_path if args.output_path else os.path.join(script_dir, "model_metrics.txt")
 
     processed_data = load_and_preprocess_data(filepath)
 
     if processed_data is not None:
-        results, features, split_sizes = train_and_evaluate(processed_data)
-        report_path = os.path.join(script_dir, "model_metrics.txt")
+        results, features, split_sizes = train_and_evaluate(
+            processed_data,
+            model_family=args.model_family,
+            profile=args.profile
+        )
         generate_evaluation_report(results, split_sizes, output_path=report_path)
         print(f"\nPipeline complete. Report saved to: {report_path}")
