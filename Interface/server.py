@@ -13,6 +13,8 @@ MODEL_SCRIPT = os.path.join(MODEL_DIR, "rain_prediction.py")
 LATEST_REPORT_PATH = os.path.join(MODEL_DIR, "model_metrics.txt")
 LEVEL2_DIR = os.path.join(ROOT_DIR, "level2")
 LEVEL2_SCRIPT = os.path.join(LEVEL2_DIR, "temperature_prediction.py")
+LEVEL3_DIR = os.path.join(ROOT_DIR, "Level_3_Unsupervised Snow Detection")
+LEVEL3_SCRIPT = os.path.join(LEVEL3_DIR, "snow_prediction.py")
 
 model_spec = importlib.util.spec_from_file_location("rain_prediction_module", MODEL_SCRIPT)
 rain_prediction_module = importlib.util.module_from_spec(model_spec)
@@ -46,6 +48,14 @@ def _reload_level2_module():
     predict_temperature_for_day = module.predict_temperature_for_day
     list_saved_temperature_models = module.list_saved_temperature_models
 
+level3_spec = importlib.util.spec_from_file_location("snow_prediction_module", LEVEL3_SCRIPT)
+snow_prediction_module = importlib.util.module_from_spec(level3_spec)
+assert level3_spec and level3_spec.loader
+level3_spec.loader.exec_module(snow_prediction_module)
+
+get_snowfall_prediction_options = snow_prediction_module.get_snowfall_prediction_options
+predict_snowfall_for_district = snow_prediction_module.predict_snowfall_for_district
+
 
 class DashboardHandler(SimpleHTTPRequestHandler):
     def __init__(self, *args, **kwargs):
@@ -72,6 +82,10 @@ class DashboardHandler(SimpleHTTPRequestHandler):
             self.handle_level2_options()
             return
 
+        if self.path == "/api/level3-options":
+            self.handle_level3_options()
+            return
+
         if self.path in ["/", "/index.html"]:
             self.path = "/index.html"
 
@@ -88,6 +102,10 @@ class DashboardHandler(SimpleHTTPRequestHandler):
 
         if self.path == "/api/predict-temperature-day":
             self.handle_predict_temperature_day()
+            return
+
+        if self.path == "/api/predict-snowfall-district":
+            self.handle_predict_snowfall_district()
             return
 
         self._send_json(404, {"error": "Not found"})
@@ -145,6 +163,20 @@ class DashboardHandler(SimpleHTTPRequestHandler):
 
         try:
             options = get_temperature_prediction_options(dataset_path)
+        except Exception as exc:
+            self._send_json(500, {"error": str(exc)})
+            return
+
+        self._send_json(200, {"ok": True, **options, "datasetPath": dataset_path})
+
+    def handle_level3_options(self):
+        dataset_path = self._resolve_dataset_path(os.path.join(ROOT_DIR, "data/meteorology_dataset.csv"))
+        if not os.path.exists(dataset_path):
+            self._send_json(400, {"error": f"Dataset not found: {dataset_path}"})
+            return
+
+        try:
+            options = get_snowfall_prediction_options(dataset_path)
         except Exception as exc:
             self._send_json(500, {"error": str(exc)})
             return
@@ -327,6 +359,40 @@ class DashboardHandler(SimpleHTTPRequestHandler):
                 selected_date=selected_date,
                 location=location,
                 saved_model_name=saved_model,
+            )
+        except Exception as exc:
+            self._send_json(500, {"error": str(exc)})
+            return
+
+        duration_ms = int((time.time() - start_time) * 1000)
+        self._send_json(200, {"ok": True, "prediction": prediction, "durationMs": duration_ms})
+
+    def handle_predict_snowfall_district(self):
+        content_length = int(self.headers.get("Content-Length", "0"))
+        body = self.rfile.read(content_length) if content_length > 0 else b"{}"
+
+        try:
+            payload = json.loads(body.decode("utf-8"))
+        except json.JSONDecodeError:
+            self._send_json(400, {"error": "Invalid JSON body."})
+            return
+
+        dataset_path = self._resolve_dataset_path(payload.get("datasetPath"))
+        location = str(payload.get("location") or "").strip()
+
+        if not location:
+            self._send_json(400, {"error": "location is required."})
+            return
+
+        if not os.path.exists(dataset_path):
+            self._send_json(400, {"error": f"Dataset not found: {dataset_path}"})
+            return
+
+        start_time = time.time()
+        try:
+            prediction = predict_snowfall_for_district(
+                filepath=dataset_path,
+                location=location,
             )
         except Exception as exc:
             self._send_json(500, {"error": str(exc)})

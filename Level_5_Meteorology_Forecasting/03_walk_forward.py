@@ -94,6 +94,7 @@ def walk_forward(df: pd.DataFrame):
             # Rain: clip negatives (Tweedie is always >= 0, but safety net)
             if target == "target_rain":
                 preds = np.clip(preds, 0, None)
+                preds[preds < 0.1] = 0.0
 
             mae = mean_absolute_error(y_test, preds)
             step_mae[target]   = mae

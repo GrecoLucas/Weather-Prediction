@@ -1,0 +1,145 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Weather Intelligence Studio - Level 3</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=DM+Serif+Display:ital@0;1&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <div class="bg-shape bg-shape-1" aria-hidden="true"></div>
+    <div class="bg-shape bg-shape-2" aria-hidden="true"></div>
+
+    <header class="topbar">
+      <div>
+        <p class="eyebrow">Meteorology ML Platform</p>
+        <h1>Weather Intelligence Studio</h1>
+        <p class="subtitle">
+          Predict snowfall hours for a selected district across the dataset
+          using the best Level 3 anomaly model.
+        </p>
+        <div class="level-nav">
+          <a class="level-link" href="index.html">Level 1: Rain</a>
+          <a class="level-link" href="level2.html">Level 2: Temperature</a>
+          <a class="level-link active" href="level3.html">Level 3: Snowfall</a>
+        </div>
+      </div>
+      <div class="status-pill" id="status-pill">System ready</div>
+    </header>
+
+    <main class="layout">
+      <section class="card card-control">
+        <h2>Level 3 Snowfall Prediction</h2>
+        <p class="card-intro">
+          Choose a district and predict which dataset hours are likely snowfall
+          hours.
+        </p>
+
+        <form id="level3-form" class="controls-grid">
+          <label>
+            Dataset Path
+            <input
+              type="text"
+              id="dataset-path"
+              value="data/meteorology_dataset.csv"
+              placeholder="Path to CSV dataset"
+            />
+          </label>
+
+          <label>
+            District (Location)
+            <select id="location-select"></select>
+          </label>
+
+          <div class="control-actions">
+            <button type="submit" class="btn btn-primary" id="predict-btn">
+              Predict Snowfall Hours
+            </button>
+            <button
+              type="button"
+              class="btn btn-secondary"
+              id="refresh-options-btn"
+            >
+              Refresh Options
+            </button>
+          </div>
+        </form>
+
+        <p class="hint" id="dataset-range">Loading dataset information...</p>
+      </section>
+
+      <section class="card card-kpis">
+        <h2>Snowfall Snapshot</h2>
+        <div class="kpi-grid" id="kpi-grid"></div>
+      </section>
+
+      <section class="card card-ranking">
+        <h2>Predicted Snowfall Hours</h2>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Time</th>
+                <th>Anomaly Score</th>
+                <th>Temp (°C)</th>
+                <th>Humidity (%)</th>
+                <th>Rain (mm)</th>
+                <th id="observed-snow-header">Observed Snow</th>
+              </tr>
+            </thead>
+            <tbody id="hourly-body"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="card card-chart">
+        <div class="section-head">
+          <h2>Monthly Snowfall Counts</h2>
+          <p class="hint">
+            Predicted snowfall-hour distribution by month for the selected
+            district.
+          </p>
+        </div>
+        <div id="bars" class="bars"></div>
+      </section>
+
+      <section class="card card-details">
+        <div class="section-head">
+          <h2>Run Details</h2>
+          <div class="result-chip" id="prediction-chip">
+            Awaiting prediction
+          </div>
+        </div>
+
+        <div class="split-grid" id="split-grid"></div>
+
+        <h3>Prediction Notes</h3>
+        <div class="pre-box" id="prediction-notes"></div>
+
+        <h3>Chosen Parameters</h3>
+        <pre id="hyperparams" class="pre-box"></pre>
+      </section>
+
+      <section class="card card-log">
+        <h2>Run Log</h2>
+        <div id="run-log" class="log"></div>
+      </section>
+    </main>
+
+    <template id="kpi-template">
+      <article class="kpi-card">
+        <p class="kpi-label"></p>
+        <p class="kpi-value"></p>
+        <p class="kpi-extra"></p>
+      </article>
+    </template>
+
+    <script src="level3.js"></script>
+  </body>
+</html>
