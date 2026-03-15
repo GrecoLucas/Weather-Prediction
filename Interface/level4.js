@@ -31,7 +31,8 @@ function setStatus(message) {
 }
 
 function fmt(value, decimals = 3) {
-  if (value === null || value === undefined || Number.isNaN(Number(value))) return "-";
+  if (value === null || value === undefined || Number.isNaN(Number(value)))
+    return "-";
   return Number(value).toFixed(decimals);
 }
 
@@ -45,7 +46,11 @@ function renderKPIs(prediction) {
   const notebookRows = (notebookEquivalent && notebookEquivalent.rows) || [];
   const notebookGlobalNo = getSummaryRow(notebookRows, "Global", "No uplift");
   const best = summary.reduce((acc, row) => {
-    if (!acc || Number(row["Total Vehicle Error"]) < Number(acc["Total Vehicle Error"])) return row;
+    if (
+      !acc ||
+      Number(row["Total Vehicle Error"]) < Number(acc["Total Vehicle Error"])
+    )
+      return row;
     return acc;
   }, null);
 
@@ -57,7 +62,10 @@ function renderKPIs(prediction) {
   const bestActualVeh = best ? Number(best["Total Actual Vehicles"]) : null;
   const bestPredVeh = best ? Number(best["Total Pred Vehicles"]) : null;
   const bestUnderRate = best ? Number(best["Underestimation Rate"]) : null;
-  const vehicleGap = bestActualVeh != null && bestPredVeh != null ? bestPredVeh - bestActualVeh : null;
+  const vehicleGap =
+    bestActualVeh != null && bestPredVeh != null
+      ? bestPredVeh - bestActualVeh
+      : null;
 
   const items = [
     {
@@ -70,7 +78,9 @@ function renderKPIs(prediction) {
     {
       label: isAllLocations ? "Mean Vehicle Error" : "Vehicle Error (Mean)",
       value: bestMeanError != null ? fmt(bestMeanError, 2) : "-",
-      extra: isAllLocations ? "Average across selected day rows" : "Average per row for selected location/day",
+      extra: isAllLocations
+        ? "Average across selected day rows"
+        : "Average per row for selected location/day",
     },
     {
       label: "Vehicles Needed vs Predicted",
@@ -95,7 +105,9 @@ function renderKPIs(prediction) {
     },
     {
       label: "Mean Vehicle Error (Global, No Uplift)",
-      value: notebookGlobalNo ? fmt(notebookGlobalNo["Mean Vehicle Error"], 2) : "-",
+      value: notebookGlobalNo
+        ? fmt(notebookGlobalNo["Mean Vehicle Error"], 2)
+        : "-",
       extra: notebookEquivalent
         ? `Notebook test window: ${notebookEquivalent.testStartDate} to ${notebookEquivalent.testEndDate}`
         : "Notebook-equivalent summary not available",
@@ -104,7 +116,8 @@ function renderKPIs(prediction) {
     {
       label: "Median Vehicle Error (Global, No Uplift)",
       value:
-        notebookGlobalNo && notebookGlobalNo["Median Vehicle Error"] !== undefined
+        notebookGlobalNo &&
+        notebookGlobalNo["Median Vehicle Error"] !== undefined
           ? fmt(notebookGlobalNo["Median Vehicle Error"], 2)
           : "-",
       extra: "Same metric definition as notebook final compact table",
@@ -121,9 +134,9 @@ function renderKPIs(prediction) {
     valueEl.textContent = item.value;
     node.querySelector(".kpi-extra").textContent = item.extra;
     if (item.danger) {
-      valueEl.style.color = "#c1121f";
+      valueEl.style.color = "#15803d";
       valueEl.style.fontWeight = "700";
-      labelEl.style.color = "#7f1d1d";
+      labelEl.style.color = "#14532d";
     }
     kpiGrid.appendChild(node);
   }
@@ -147,7 +160,8 @@ function renderRows(prediction) {
   }
 
   if (!rows.length) {
-    rowsBody.innerHTML = '<tr><td colspan="6">No rows returned for this date/location.</td></tr>';
+    rowsBody.innerHTML =
+      '<tr><td colspan="6">No rows returned for this date/location.</td></tr>';
   }
 }
 
@@ -159,7 +173,10 @@ function renderBars(prediction) {
     return;
   }
 
-  const maxErr = Math.max(...summary.map((r) => Number(r["Total Vehicle Error"]) || 0), 0.001);
+  const maxErr = Math.max(
+    ...summary.map((r) => Number(r["Total Vehicle Error"]) || 0),
+    0.001,
+  );
 
   for (const row of summary) {
     const totalErr = Number(row["Total Vehicle Error"]) || 0;
@@ -203,7 +220,10 @@ function renderDetails(prediction) {
     card.innerHTML = `
       <h4>${cardData.title}</h4>
       ${Object.entries(cardData.stats)
-        .map(([key, value]) => `<p class="split-stat"><strong>${key.replaceAll("_", " ")}:</strong> ${value}</p>`)
+        .map(
+          ([key, value]) =>
+            `<p class="split-stat"><strong>${key.replaceAll("_", " ")}:</strong> ${value}</p>`,
+        )
         .join("")}
     `;
     splitGrid.appendChild(card);
@@ -216,10 +236,14 @@ function renderDetails(prediction) {
     const yesRow = getSummaryRow(summary, model, "With uplift");
     if (!noRow || !yesRow) continue;
 
-    const errDelta = Number(yesRow["Total Vehicle Error"]) - Number(noRow["Total Vehicle Error"]);
-    const underDelta = Number(yesRow["Underestimation Rate"]) - Number(noRow["Underestimation Rate"]);
+    const errDelta =
+      Number(yesRow["Total Vehicle Error"]) -
+      Number(noRow["Total Vehicle Error"]);
+    const underDelta =
+      Number(yesRow["Underestimation Rate"]) -
+      Number(noRow["Underestimation Rate"]);
     impactLines.push(
-      `${model}: Vehicle Error shift = ${fmt(errDelta, 2)} | Underestimation shift = ${fmt(underDelta, 3)}`
+      `${model}: Vehicle Error shift = ${fmt(errDelta, 2)} | Underestimation shift = ${fmt(underDelta, 3)}`,
     );
   }
   const objectiveLine =
@@ -227,7 +251,8 @@ function renderDetails(prediction) {
   const notebookLine = notebookEquivalent
     ? `Notebook-equivalent test window: ${notebookEquivalent.testStartDate} to ${notebookEquivalent.testEndDate} (${notebookEquivalent.testDays} days)`
     : "Notebook-equivalent test window not available.";
-  const impactText = impactLines.join("\n") || "No uplift impact summary available.";
+  const impactText =
+    impactLines.join("\n") || "No uplift impact summary available.";
   impactSummary.textContent = `${objectiveLine}\n${notebookLine}\n${impactText}`;
 
   predictionChip.textContent = prediction.bestSetup || "Prediction ready";
@@ -241,7 +266,9 @@ function renderPrediction(prediction, durationMs) {
   renderBars(prediction);
   renderDetails(prediction);
   setStatus(`Prediction ready in ${durationMs} ms`);
-  log(`Level 4 prediction done for ${prediction.selectedDate} (${prediction.location}).`);
+  log(
+    `Level 4 prediction done for ${prediction.selectedDate} (${prediction.location}).`,
+  );
 }
 
 async function loadOptions() {
@@ -293,7 +320,9 @@ async function handlePrediction(event) {
   }
 
   setStatus("Running Level 4 prediction...");
-  log(`Predicting accidents for ${payload.selectedDate} (location: ${payload.location || "ALL"}).`);
+  log(
+    `Predicting accidents for ${payload.selectedDate} (location: ${payload.location || "ALL"}).`,
+  );
 
   const response = await fetch("/api/predict-accidents-day", {
     method: "POST",
