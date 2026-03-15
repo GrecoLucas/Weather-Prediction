@@ -47,19 +47,19 @@ function renderKPIs(prediction) {
       extra: prediction.modelName,
     },
     {
-      label: "Snowfall Hours",
+      label: "Outlier Hours (Snow-filtered)",
       value: `${prediction.snowyHours}/${prediction.totalHours}`,
-      extra: "Predicted hours with snow_fall = 1",
+      extra: "Hours flagged as anomalies after snow-like weather filter",
     },
     {
-      label: "Snowfall Rate",
+      label: "Outlier % (Raw)",
+      value: formatPercent(prediction.rawAnomalyRate),
+      extra: "Primary anomaly-detection metric",
+    },
+    {
+      label: "Outlier % (Snow-filtered)",
       value: formatPercent(prediction.snowyRate),
-      extra: "Share of district hours predicted as snowfall",
-    },
-    {
-      label: "Avg Anomaly Score",
-      value: `${(Number(prediction.confidence || 0) * 100).toFixed(1)}%`,
-      extra: "Relative anomaly intensity (not calibrated probability)",
+      extra: "Anomalies that also satisfy snow-like weather rules",
     },
   ];
 
@@ -83,7 +83,6 @@ function renderHourlyTable(prediction) {
     const tr = document.createElement("tr");
     tr.innerHTML = `
 			<td>${new Date(row.time).toLocaleString()}</td>
-			<td>${(Number(row.confidence || 0) * 100).toFixed(1)}%</td>
 			<td>${formatTemp(row.temperature)}</td>
 			<td>${row.humidity == null ? "-" : Number(row.humidity).toFixed(1)}</td>
 			<td>${row.rain == null ? "-" : Number(row.rain).toFixed(2)}</td>${showObservedSnow ? `<td>${row.observedSnow === null ? "N/A" : row.observedSnow ? "Yes" : "No"}</td>` : ""}
@@ -92,7 +91,7 @@ function renderHourlyTable(prediction) {
   }
 
   if (!prediction.hourly.length) {
-    const colSpan = showObservedSnow ? 6 : 5;
+    const colSpan = showObservedSnow ? 5 : 4;
     hourlyBody.innerHTML = `<tr><td colspan="${colSpan}">No snowfall hours predicted for this district.</td></tr>`;
   }
 }
@@ -169,9 +168,7 @@ function renderDetails(prediction) {
   predictionNotes.innerHTML = `
 		<p><strong>Method:</strong> best Level 3 unsupervised anomaly model + snow-like filter from the notebook workflow.</p>
 		<p><strong>Scope:</strong> all dataset rows for district <strong>${prediction.location}</strong>.</p>
-		<p><strong>Output:</strong> predicted snowfall hours and monthly distribution.</p>
-    <p><strong>Anomaly Score:</strong> relative anomaly intensity within the selected district (not a calibrated snowfall probability).</p>
-    <p><strong>Score Quality:</strong> there is no universal “good” score threshold. Use district seasonality and monthly pattern consistency to judge quality.</p>
+    <p><strong>Output:</strong> raw outlier percentage (evaluation metric), plus snow-filtered outlier percentage and monthly snow distribution.</p>
     <p><strong>Observed Snow:</strong> ${prediction.hasObservedSnow ? "derived from dataset 'snowfall' values" : "N/A (dataset has no 'snowfall' ground-truth column)"}.</p>
 	`;
 
