@@ -1,140 +1,166 @@
 <!doctype html>
 <html lang="en">
-<head>
-	<meta charset="UTF-8">
-	<meta name="viewport" content="width=device-width, initial-scale=1.0">
-	<title>Weather Intelligence Studio</title>
-	<link rel="preconnect" href="https://fonts.googleapis.com">
-	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-	<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=DM+Serif+Display:ital@0;1&display=swap" rel="stylesheet">
-	<link rel="stylesheet" href="style.css">
-</head>
-<body>
-	<div class="bg-shape bg-shape-1" aria-hidden="true"></div>
-	<div class="bg-shape bg-shape-2" aria-hidden="true"></div>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Weather Intelligence Studio</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=DM+Serif+Display:ital@0;1&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <div class="bg-shape bg-shape-1" aria-hidden="true"></div>
+    <div class="bg-shape bg-shape-2" aria-hidden="true"></div>
 
-	<header class="topbar">
-		<div>
-			<p class="eyebrow">Meteorology ML Platform</p>
-			<h1>Weather Intelligence Studio</h1>
-			<p class="subtitle">Pick a date and location, train on earlier weather data, and predict whether it will rain.</p>
-			<div class="level-nav">
-				<a class="level-link active" href="index.html">Level 1: Rain</a>
-				<a class="level-link" href="level2.html">Level 2: Temperature</a>
-			</div>
-		</div>
-		<div class="status-pill" id="status-pill">System ready</div>
-	</header>
+    <header class="topbar">
+      <div>
+        <p class="eyebrow">Meteorology ML Platform</p>
+        <h1>Weather Intelligence Studio</h1>
+        <p class="subtitle">
+          Pick a date and location, train on earlier weather data, and predict
+          whether it will rain.
+        </p>
+        <div class="level-nav">
+          <a class="level-link active" href="index.html">Level 1: Rain</a>
+          <a class="level-link" href="level2.html">Level 2: Temperature</a>
+          <a class="level-link" href="level3.html">Level 3: Snowfall</a>
+        </div>
+      </div>
+      <div class="status-pill" id="status-pill">System ready</div>
+    </header>
 
-	<main class="layout">
-		<section class="card card-control">
-			<h2>Level 1 Prediction</h2>
-			<p class="card-intro">The model is trained on rows before the selected day, then predicts the chosen day for the selected location.</p>
+    <main class="layout">
+      <section class="card card-control">
+        <h2>Level 1 Prediction</h2>
+        <p class="card-intro">
+          The model is trained on rows before the selected day, then predicts
+          the chosen day for the selected location.
+        </p>
 
-			<form id="prediction-form" class="controls-grid">
-				<label>
-					Dataset Path
-					<input type="text" id="dataset-path" value="data/meteorology_dataset.csv" placeholder="Path to CSV dataset">
-				</label>
+        <form id="prediction-form" class="controls-grid">
+          <label>
+            Dataset Path
+            <input
+              type="text"
+              id="dataset-path"
+              value="data/meteorology_dataset.csv"
+              placeholder="Path to CSV dataset"
+            />
+          </label>
 
-				<label>
-					Date
-					<input type="date" id="selected-date">
-				</label>
+          <label>
+            Date
+            <input type="date" id="selected-date" />
+          </label>
 
-				<label>
-					Location
-					<select id="location-select"></select>
-				</label>
+          <label>
+            Location
+            <select id="location-select"></select>
+          </label>
 
-				<label>
-					Model Family
-					<select id="model-family">
-						<option value="all">All (RF + XGB + LGBM)</option>
-						<option value="lgbm">LightGBM only</option>
-						<option value="xgb">XGBoost only</option>
-						<option value="rf">RandomForest only</option>
-					</select>
-				</label>
+          <label>
+            Model Family
+            <select id="model-family">
+              <option value="all">All (RF + XGB + LGBM)</option>
+              <option value="lgbm">LightGBM only</option>
+              <option value="xgb">XGBoost only</option>
+              <option value="rf">RandomForest only</option>
+            </select>
+          </label>
 
-				<label>
-					Optimization Profile
-					<select id="profile">
-						<option value="balanced">Balanced F1</option>
-						<option value="recall">High Recall</option>
-						<option value="precision">High Precision</option>
-					</select>
-				</label>
+          <label>
+            Optimization Profile
+            <select id="profile">
+              <option value="balanced">Balanced F1</option>
+              <option value="recall">High Recall</option>
+              <option value="precision">High Precision</option>
+            </select>
+          </label>
 
-				<div class="control-actions">
-					<button type="submit" class="btn btn-primary" id="predict-btn">Predict Rain</button>
-					<button type="button" class="btn btn-secondary" id="refresh-options-btn">Refresh Options</button>
-				</div>
-			</form>
+          <div class="control-actions">
+            <button type="submit" class="btn btn-primary" id="predict-btn">
+              Predict Rain
+            </button>
+            <button
+              type="button"
+              class="btn btn-secondary"
+              id="refresh-options-btn"
+            >
+              Refresh Options
+            </button>
+          </div>
+        </form>
 
-			<p class="hint" id="dataset-range">Loading dataset information...</p>
+        <p class="hint" id="dataset-range">Loading dataset information...</p>
+      </section>
 
-		</section>
+      <section class="card card-kpis">
+        <h2>Prediction Snapshot</h2>
+        <div class="kpi-grid" id="kpi-grid"></div>
+      </section>
 
-		<section class="card card-kpis">
-			<h2>Prediction Snapshot</h2>
-			<div class="kpi-grid" id="kpi-grid"></div>
-		</section>
+      <section class="card card-ranking">
+        <h2>Hourly Outlook</h2>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Hour</th>
+                <th>Prediction</th>
+                <th>Confidence</th>
+                <th>Observed</th>
+              </tr>
+            </thead>
+            <tbody id="hourly-body"></tbody>
+          </table>
+        </div>
+      </section>
 
-		<section class="card card-ranking">
-			<h2>Hourly Outlook</h2>
-			<div class="table-wrap">
-				<table>
-					<thead>
-						<tr>
-							<th>Hour</th>
-							<th>Prediction</th>
-							<th>Confidence</th>
-							<th>Observed</th>
-						</tr>
-					</thead>
-					<tbody id="hourly-body"></tbody>
-				</table>
-			</div>
-		</section>
+      <section class="card card-chart">
+        <div class="section-head">
+          <h2>Hourly Confidence</h2>
+          <p class="hint">
+            Probability of rain for each hour in the selected day.
+          </p>
+        </div>
+        <div id="bars" class="bars"></div>
+      </section>
 
-		<section class="card card-chart">
-			<div class="section-head">
-				<h2>Hourly Confidence</h2>
-				<p class="hint">Probability of rain for each hour in the selected day.</p>
-			</div>
-			<div id="bars" class="bars"></div>
-		</section>
+      <section class="card card-details">
+        <div class="section-head">
+          <h2>Run Details</h2>
+          <div class="result-chip" id="prediction-chip">
+            Awaiting prediction
+          </div>
+        </div>
 
-		<section class="card card-details">
-			<div class="section-head">
-				<h2>Run Details</h2>
-				<div class="result-chip" id="prediction-chip">Awaiting prediction</div>
-			</div>
+        <div class="split-grid" id="split-grid"></div>
 
-			<div class="split-grid" id="split-grid"></div>
+        <h3>Prediction Notes</h3>
+        <div class="pre-box" id="prediction-notes"></div>
 
-			<h3>Prediction Notes</h3>
-			<div class="pre-box" id="prediction-notes"></div>
+        <h3>Chosen Hyperparameters</h3>
+        <pre id="hyperparams" class="pre-box"></pre>
+      </section>
 
-			<h3>Chosen Hyperparameters</h3>
-			<pre id="hyperparams" class="pre-box"></pre>
-		</section>
+      <section class="card card-log">
+        <h2>Run Log</h2>
+        <div id="run-log" class="log"></div>
+      </section>
+    </main>
 
-		<section class="card card-log">
-			<h2>Run Log</h2>
-			<div id="run-log" class="log"></div>
-		</section>
-	</main>
+    <template id="kpi-template">
+      <article class="kpi-card">
+        <p class="kpi-label"></p>
+        <p class="kpi-value"></p>
+        <p class="kpi-extra"></p>
+      </article>
+    </template>
 
-	<template id="kpi-template">
-		<article class="kpi-card">
-			<p class="kpi-label"></p>
-			<p class="kpi-value"></p>
-			<p class="kpi-extra"></p>
-		</article>
-	</template>
-
-	<script src="app.js"></script>
-</body>
+    <script src="app.js"></script>
+  </body>
 </html>
