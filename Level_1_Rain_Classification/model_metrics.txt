@@ -1,0 +1,199 @@
+RAIN PREDICTION — MODEL COMPARISON REPORT
+============================================================
+
+Dataset Split Sizes:
+  Train      : 126489
+  Validation : 15811
+  Test       : 15812
+
+
+============================================================
+MODEL: LightGBM
+============================================================
+Chosen Hyperparameters : {'n_estimators': 200, 'max_depth': 8, 'learning_rate': 0.2, 'num_leaves': 63}
+
+  --- Train Set ---
+  F1-Score  : 0.8918
+  Precision : 0.8097
+  Recall    : 0.9923
+  Confusion Matrix:
+[[95506  5858]
+ [  194 24931]]
+  Classification Report:
+              precision    recall  f1-score   support
+
+           0     0.9980    0.9422    0.9693    101364
+           1     0.8097    0.9923    0.8918     25125
+
+    accuracy                         0.9522    126489
+   macro avg     0.9039    0.9672    0.9305    126489
+weighted avg     0.9606    0.9522    0.9539    126489
+
+  --- Validation Set ---
+  F1-Score  : 0.8014
+  Precision : 0.7229
+  Recall    : 0.8990
+  Confusion Matrix:
+[[11589  1082]
+ [  317  2823]]
+  Classification Report:
+              precision    recall  f1-score   support
+
+           0     0.9734    0.9146    0.9431     12671
+           1     0.7229    0.8990    0.8014      3140
+
+    accuracy                         0.9115     15811
+   macro avg     0.8481    0.9068    0.8722     15811
+weighted avg     0.9236    0.9115    0.9149     15811
+
+  --- Test Set ---
+  F1-Score  : 0.7985
+  Precision : 0.7198
+  Recall    : 0.8965
+  Confusion Matrix:
+[[11575  1096]
+ [  325  2816]]
+  Classification Report:
+              precision    recall  f1-score   support
+
+           0     0.9727    0.9135    0.9422     12671
+           1     0.7198    0.8965    0.7985      3141
+
+    accuracy                         0.9101     15812
+   macro avg     0.8463    0.9050    0.8703     15812
+weighted avg     0.9225    0.9101    0.9136     15812
+
+
+============================================================
+MODEL: XGBoost
+============================================================
+Chosen Hyperparameters : {'n_estimators': 400, 'learning_rate': 0.05, 'max_depth': 5, 'subsample': 0.8, 'colsample_bytree': 0.8, 'reg_lambda': 1, 'reg_alpha': 0.1, 'early_stopping_rounds': 30}
+
+  --- Train Set ---
+  F1-Score  : 0.8025
+  Precision : 0.6928
+  Recall    : 0.9534
+  Confusion Matrix:
+[[90744 10620]
+ [ 1170 23955]]
+  Classification Report:
+              precision    recall  f1-score   support
+
+           0     0.9873    0.8952    0.9390    101364
+           1     0.6928    0.9534    0.8025     25125
+
+    accuracy                         0.9068    126489
+   macro avg     0.8401    0.9243    0.8708    126489
+weighted avg     0.9288    0.9068    0.9119    126489
+
+  --- Validation Set ---
+  F1-Score  : 0.7782
+  Precision : 0.6712
+  Recall    : 0.9258
+  Confusion Matrix:
+[[11247  1424]
+ [  233  2907]]
+  Classification Report:
+              precision    recall  f1-score   support
+
+           0     0.9797    0.8876    0.9314     12671
+           1     0.6712    0.9258    0.7782      3140
+
+    accuracy                         0.8952     15811
+   macro avg     0.8255    0.9067    0.8548     15811
+weighted avg     0.9184    0.8952    0.9010     15811
+
+  --- Test Set ---
+  F1-Score  : 0.7755
+  Precision : 0.6671
+  Recall    : 0.9258
+  Confusion Matrix:
+[[11220  1451]
+ [  233  2908]]
+  Classification Report:
+              precision    recall  f1-score   support
+
+           0     0.9797    0.8855    0.9302     12671
+           1     0.6671    0.9258    0.7755      3141
+
+    accuracy                         0.8935     15812
+   macro avg     0.8234    0.9057    0.8528     15812
+weighted avg     0.9176    0.8935    0.8995     15812
+
+
+============================================================
+MODEL: RandomForest
+============================================================
+Chosen Hyperparameters : {'n_estimators': 200, 'max_depth': 10, 'min_samples_leaf': 10}
+
+  --- Train Set ---
+  F1-Score  : 0.7727
+  Precision : 0.6490
+  Recall    : 0.9548
+  Confusion Matrix:
+[[88388 12976]
+ [ 1135 23990]]
+  Classification Report:
+              precision    recall  f1-score   support
+
+           0     0.9873    0.8720    0.9261    101364
+           1     0.6490    0.9548    0.7727     25125
+
+    accuracy                         0.8884    126489
+   macro avg     0.8181    0.9134    0.8494    126489
+weighted avg     0.9201    0.8884    0.8956    126489
+
+  --- Validation Set ---
+  F1-Score  : 0.7486
+  Precision : 0.6265
+  Recall    : 0.9299
+  Confusion Matrix:
+[[10930  1741]
+ [  220  2920]]
+  Classification Report:
+              precision    recall  f1-score   support
+
+           0     0.9803    0.8626    0.9177     12671
+           1     0.6265    0.9299    0.7486      3140
+
+    accuracy                         0.8760     15811
+   macro avg     0.8034    0.8963    0.8331     15811
+weighted avg     0.9100    0.8760    0.8841     15811
+
+  --- Test Set ---
+  F1-Score  : 0.7435
+  Precision : 0.6221
+  Recall    : 0.9239
+  Confusion Matrix:
+[[10908  1763]
+ [  239  2902]]
+  Classification Report:
+              precision    recall  f1-score   support
+
+           0     0.9786    0.8609    0.9159     12671
+           1     0.6221    0.9239    0.7435      3141
+
+    accuracy                         0.8734     15812
+   macro avg     0.8003    0.8924    0.8297     15812
+weighted avg     0.9077    0.8734    0.8817     15812
+
+
+============================================================
+MODEL COMPARISON SUMMARY (ranked by Validation F1)
+============================================================
+Rank  Model          Val F1    Test F1   Val Prec    Val Rec   
+------------------------------------------------------------
+1     LightGBM       0.8014    0.7985    0.7229      0.8990    
+2     XGBoost        0.7782    0.7755    0.6712      0.9258    
+3     RandomForest   0.7486    0.7435    0.6265      0.9299    
+
+============================================================
+BEST MODEL: LightGBM
+  Validation F1          : 0.8014
+  Test F1                : 0.7985
+  Chosen Hyperparameters : {'n_estimators': 200, 'max_depth': 8, 'learning_rate': 0.2, 'num_leaves': 63}
+
+  Overfitting Analysis (LightGBM):
+    Train F1: 0.8918 | Validation F1: 0.8014
+    No significant overfitting detected.
+============================================================
