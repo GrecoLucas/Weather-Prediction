@@ -15,26 +15,26 @@ Temperature 2m (°C):
   Step MAE min/max   : 1.371243 / 2.985002
 
 Rain (mm):
-  MAE                : 0.167208
-  RMSE               : 0.648689
-  R2                 : 0.024925
-  Bias (pred-real)   : -0.119581
-  Corr (Pearson)     : 0.246899
-  Step MAE mean/std  : 0.165874 / 0.219494
-  Step MAE min/max   : 0.000034 / 0.780253
+  MAE                : 0.165249
+  RMSE               : 0.652139
+  R2                 : 0.014525
+  Bias (pred-real)   : -0.126900
+  Corr (Pearson)     : 0.230545
+  Step MAE mean/std  : 0.163703 / 0.221185
+  Step MAE min/max   : 0.000033 / 0.784816
 
 GLOBAL METRICS
 ----------------------------------------------------
-Global MAE                      : 1.095783
-Score (2 targets)             : 14.033786
-Score (competition-equivalent)  : 35.084464
+Global MAE                      : 1.094803
+Score (2 targets)             : 14.040349
+Score (competition-equivalent)  : 35.100872
 
 RAIN DIAGNOSTICS
 ----------------------------------------------------
 Actual non-zero rate            : 0.183081
-Pred non-zero rate              : 1.000000
-Pred mean when actual=0         : 0.022472
-Pred mean when actual>0         : 0.137171
+Pred non-zero rate              : 0.114209
+Pred mean when actual=0         : 0.016793
+Pred mean when actual>0         : 0.122534
 Max actual rain                 : 22.800000
 Max predicted rain              : 3.215168
 
