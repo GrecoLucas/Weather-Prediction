@@ -36,22 +36,11 @@ function formatTemp(value) {
 
 function renderKPIs(prediction) {
 	kpiGrid.innerHTML = "";
-	const isFuture = prediction.forecastMode === "future";
 	const items = [
 		{
 			label: "Predicted Avg",
 			value: formatTemp(prediction.predictedAverage),
 			extra: `${prediction.modelName}`,
-		},
-		{
-			label: "Actual Avg",
-			value: formatTemp(prediction.actualAverage),
-			extra: isFuture ? `Future date (actual unknown)` : `Selected day in dataset`,
-		},
-		{
-			label: "Day MAE",
-			value: formatTemp(prediction.dayMetrics?.mae),
-			extra: isFuture ? `Not available for future forecasts` : `Hourly absolute error average`,
 		},
 		{
 			label: "Prediction Range",
@@ -127,6 +116,7 @@ function renderDetails(prediction) {
 				date: prediction.selectedDate,
 				location: prediction.location || "All",
 				forecast_mode: prediction.forecastMode,
+				model_source: prediction.loadedFromCache ? "saved artifact" : "fresh training",
 				last_historical_date: prediction.lastHistoricalDate,
 				training_samples: prediction.trainingSamples,
 			},
@@ -152,7 +142,9 @@ function renderDetails(prediction) {
 		<p><strong>Pipeline source:</strong> Level 2 feature engineering and model flow adapted from level2_models.ipynb into Python module level2/temperature_prediction.py.</p>
 		<p><strong>Prediction target:</strong> next-hour temperature values across all rows for ${prediction.selectedDate}.</p>
 		<p><strong>Mode:</strong> ${isFuture ? "Future forecast (actual values are not in the dataset yet)." : "Historical backtest (actual values are available)."}</p>
-		<p><strong>Tip:</strong> if MAE is unstable, compare model families (LGBM/XGB/RF/LR/Vote) and adjust excluded features in the Python module.</p>
+		<p><strong>Model reuse:</strong> ${prediction.loadedFromCache ? "loaded saved model artifact" : "trained a new model for this request"}.</p>
+		<p><strong>Artifact:</strong> ${prediction.artifactPath || "Not provided"}</p>
+		<p><strong>Tip:</strong> only models saved in level2/saved_models appear in the dropdown.</p>
 	`;
 }
 
@@ -183,6 +175,21 @@ async function loadOptions() {
 	}
 	datasetRange.textContent = `Historical data available from ${payload.minDate} to ${payload.maxDate}. You can also choose future dates.`;
 
+	modelFamilySelect.innerHTML = "";
+	if (Array.isArray(payload.savedModels) && payload.savedModels.length > 0) {
+		for (const model of payload.savedModels) {
+			const option = document.createElement("option");
+			option.value = model.value;
+			option.textContent = model.label;
+			modelFamilySelect.appendChild(option);
+		}
+	} else {
+		const option = document.createElement("option");
+		option.value = "";
+		option.textContent = "No saved models found";
+		modelFamilySelect.appendChild(option);
+	}
+
 	locationSelect.innerHTML = '<option value="">All available locations</option>';
 	if (Array.isArray(payload.locations)) {
 		for (const location of payload.locations) {
@@ -203,11 +210,15 @@ async function handlePrediction(event) {
 		datasetPath: datasetPathInput.value.trim(),
 		selectedDate: selectedDateInput.value,
 		location: locationSelect.value,
-		modelFamily: modelFamilySelect.value,
+		savedModel: modelFamilySelect.value,
 	};
 
+	if (!payload.savedModel) {
+		throw new Error("No saved model is available. Train and save a Level 2 model first.");
+	}
+
 	setStatus("Running temperature prediction...");
-	log(`Predicting temperature for ${payload.selectedDate} using ${payload.modelFamily}.`);
+	log(`Predicting temperature for ${payload.selectedDate} using saved model ${payload.savedModel}.`);
 
 	const response = await fetch("/api/predict-temperature-day", {
 		method: "POST",

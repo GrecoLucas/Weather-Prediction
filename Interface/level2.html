@@ -29,7 +29,7 @@
 	<main class="layout">
 		<section class="card card-control">
 			<h2>Level 2 Prediction</h2>
-			<p class="card-intro">Pick a day and model family. The backend trains on earlier rows and predicts hourly temperatures for the selected day.</p>
+			<p class="card-intro">Pick a day and one of the saved Level 2 models. The backend loads that artifact and predicts hourly temperatures for the selected day.</p>
 
 			<form id="level2-form" class="controls-grid">
 				<label>
@@ -50,13 +50,9 @@
 				</label>
 
 				<label>
-					Model Family
+					Saved Model
 					<select id="model-family">
-						<option value="lgbm">LightGBM</option>
-						<option value="xgb">XGBoost</option>
-						<option value="rf">RandomForest</option>
-						<option value="lr">Linear Regression</option>
-						<option value="vote">Voting (RF + XGB + LGBM)</option>
+						<option value="">Loading saved models...</option>
 					</select>
 				</label>
 

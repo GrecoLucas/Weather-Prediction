@@ -29,6 +29,22 @@ level2_spec.loader.exec_module(temperature_prediction_module)
 
 get_temperature_prediction_options = temperature_prediction_module.get_temperature_prediction_options
 predict_temperature_for_day = temperature_prediction_module.predict_temperature_for_day
+list_saved_temperature_models = temperature_prediction_module.list_saved_temperature_models
+
+
+def _reload_level2_module():
+    global get_temperature_prediction_options
+    global predict_temperature_for_day
+    global list_saved_temperature_models
+
+    module_spec = importlib.util.spec_from_file_location("temperature_prediction_module", LEVEL2_SCRIPT)
+    module = importlib.util.module_from_spec(module_spec)
+    assert module_spec and module_spec.loader
+    module_spec.loader.exec_module(module)
+
+    get_temperature_prediction_options = module.get_temperature_prediction_options
+    predict_temperature_for_day = module.predict_temperature_for_day
+    list_saved_temperature_models = module.list_saved_temperature_models
 
 
 class DashboardHandler(SimpleHTTPRequestHandler):
@@ -121,6 +137,7 @@ class DashboardHandler(SimpleHTTPRequestHandler):
         self._send_json(200, {"ok": True, **options, "datasetPath": dataset_path})
 
     def handle_level2_options(self):
+        _reload_level2_module()
         dataset_path = self._resolve_dataset_path(os.path.join(ROOT_DIR, "data/meteorology_dataset.csv"))
         if not os.path.exists(dataset_path):
             self._send_json(400, {"error": f"Dataset not found: {dataset_path}"})
@@ -271,6 +288,7 @@ class DashboardHandler(SimpleHTTPRequestHandler):
         self._send_json(200, {"ok": True, "prediction": prediction, "durationMs": duration_ms})
 
     def handle_predict_temperature_day(self):
+        _reload_level2_module()
         content_length = int(self.headers.get("Content-Length", "0"))
         body = self.rfile.read(content_length) if content_length > 0 else b"{}"
 
@@ -283,18 +301,23 @@ class DashboardHandler(SimpleHTTPRequestHandler):
         dataset_path = self._resolve_dataset_path(payload.get("datasetPath"))
         selected_date = str(payload.get("selectedDate") or "").strip()
         location = str(payload.get("location") or "").strip()
-        model_family = str(payload.get("modelFamily") or "lgbm").strip().lower()
+        saved_model = str(payload.get("savedModel") or payload.get("modelFamily") or "").strip()
 
         if not selected_date:
             self._send_json(400, {"error": "selectedDate is required."})
             return
 
-        if model_family not in {"lr", "rf", "xgb", "lgbm", "vote"}:
-            self._send_json(400, {"error": f"Invalid modelFamily '{model_family}'."})
+        if not saved_model:
+            self._send_json(400, {"error": "savedModel is required."})
             return
 
         if not os.path.exists(dataset_path):
             self._send_json(400, {"error": f"Dataset not found: {dataset_path}"})
+            return
+
+        available_models = {item["value"] for item in list_saved_temperature_models()}
+        if saved_model not in available_models:
+            self._send_json(400, {"error": f"Saved model not found: {saved_model}"})
             return
 
         start_time = time.time()
@@ -303,7 +326,7 @@ class DashboardHandler(SimpleHTTPRequestHandler):
                 filepath=dataset_path,
                 selected_date=selected_date,
                 location=location,
-                model_family=model_family,
+                saved_model_name=saved_model,
             )
         except Exception as exc:
             self._send_json(500, {"error": str(exc)})
