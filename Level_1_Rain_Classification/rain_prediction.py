@@ -430,7 +430,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     script_dir = os.path.dirname(os.path.abspath(__file__))
-    default_dataset_path = os.path.join(script_dir, "..", "metherology_dataset.csv")
+    default_dataset_path = os.path.join(script_dir, "..", "data/meteorology_dataset.csv")
     filepath = args.dataset_path if args.dataset_path else default_dataset_path
     report_path = args.output_path if args.output_path else os.path.join(script_dir, "model_metrics.txt")
 

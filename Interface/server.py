@@ -59,7 +59,7 @@ class DashboardHandler(SimpleHTTPRequestHandler):
         self._send_json(404, {"error": "Not found"})
 
     def _resolve_dataset_path(self, dataset_path):
-        dataset_path = str(dataset_path or os.path.join(ROOT_DIR, "metherology_dataset.csv")).strip()
+        dataset_path = str(dataset_path or os.path.join(ROOT_DIR, "data/meteorology_dataset.csv")).strip()
 
         if not os.path.isabs(dataset_path):
             candidate_from_root = os.path.normpath(os.path.join(ROOT_DIR, dataset_path))
@@ -89,7 +89,7 @@ class DashboardHandler(SimpleHTTPRequestHandler):
         )
 
     def handle_level1_options(self):
-        dataset_path = self._resolve_dataset_path(os.path.join(ROOT_DIR, "metherology_dataset.csv"))
+        dataset_path = self._resolve_dataset_path(os.path.join(ROOT_DIR, "data/meteorology_dataset.csv"))
         if not os.path.exists(dataset_path):
             self._send_json(400, {"error": f"Dataset not found: {dataset_path}"})
             return
