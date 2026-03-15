@@ -28,6 +28,7 @@
           <a class="level-link active" href="index.html">Level 1: Rain</a>
           <a class="level-link" href="level2.html">Level 2: Temperature</a>
           <a class="level-link" href="level3.html">Level 3: Snowfall</a>
+          <a class="level-link" href="level4.html">Level 4: Accidents</a>
           <a class="level-link" href="level5.html">Level 5: Forecasting</a>
         </div>
       </div>
@@ -103,7 +104,7 @@
               <tr>
                 <th>Hour</th>
                 <th>Prediction</th>
-                <th>Confidence</th>
+                <th>Rain Probability</th>
                 <th>Observed</th>
               </tr>
             </thead>
@@ -114,9 +115,9 @@
 
       <section class="card card-chart">
         <div class="section-head">
-          <h2>Hourly Confidence</h2>
+          <h2>Hourly Rain Probability</h2>
           <p class="hint">
-            Probability of rain for each hour in the selected day.
+            Rain probability for each hour in the selected day.
           </p>
         </div>
         <div id="bars" class="bars"></div>
@@ -153,6 +154,6 @@
       </article>
     </template>
 
-    <script src="app.js"></script>
+    <script src="app.js?v=20260315"></script>
   </body>
 </html>

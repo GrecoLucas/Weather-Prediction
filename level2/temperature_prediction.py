@@ -24,6 +24,27 @@ def _add_feature_if(df, name, value):
         df[name] = value
 
 
+def _location_group_key(data):
+    if "location" not in data.columns:
+        return pd.Series("__all__", index=data.index, dtype="string")
+    return data["location"].fillna("__missing__").astype("string")
+
+
+def _grouped_shift(grouped, column_name, periods):
+    if column_name not in grouped.obj.columns:
+        return None
+    return grouped[column_name].shift(periods)
+
+
+def _grouped_rolling(series, group_key, window, reducer):
+    return (
+        series.groupby(group_key)
+        .rolling(window)
+        .agg(reducer)
+        .reset_index(level=0, drop=True)
+    )
+
+
 def load_temperature_data(filepath, excluded_features=None):
     excluded_features = excluded_features or ["dayofweek", "day", "wind_speed_10m", "time", "year"]
 
@@ -43,6 +64,9 @@ def load_temperature_data(filepath, excluded_features=None):
         data[time_col] = pd.to_datetime(data[time_col], errors="coerce")
         data = data.sort_values(time_col).reset_index(drop=True)
 
+    location_key = _location_group_key(data)
+    grouped = data.groupby(location_key, sort=False, group_keys=False)
+
     for col in data.columns:
         if col != time_col and col != "location":
             data[col] = _safe_numeric(data[col])
@@ -51,19 +75,23 @@ def load_temperature_data(filepath, excluded_features=None):
     feature_df = data.drop(columns=base_drop_cols).copy()
     feature_df = feature_df.dropna(axis=1, how="all")
 
+    temp_shift_1 = _grouped_shift(grouped, temp_col, 1)
+    dew_shift_1 = _grouped_shift(grouped, dew_col, 1)
+    humidity_shift_1 = _grouped_shift(grouped, humidity_col, 1)
+
     for h in [1, 2, 3, 6, 12]:
-        _add_feature_if(feature_df, f"temp_lag_{h}", data[temp_col].shift(h))
+        _add_feature_if(feature_df, f"temp_lag_{h}", _grouped_shift(grouped, temp_col, h))
         if dew_col in data.columns:
-            _add_feature_if(feature_df, f"dew_lag_{h}", data[dew_col].shift(h))
+            _add_feature_if(feature_df, f"dew_lag_{h}", _grouped_shift(grouped, dew_col, h))
 
     for h in [24, 48, 72, 96]:
-        _add_feature_if(feature_df, f"temp_lag_{h}", data[temp_col].shift(h))
-        _add_feature_if(feature_df, f"temp_roll_mean_{h}", data[temp_col].shift(1).rolling(h).mean())
-        _add_feature_if(feature_df, f"temp_roll_std_{h}", data[temp_col].shift(1).rolling(h).std())
-        _add_feature_if(feature_df, f"temp_roll_min_{h}", data[temp_col].shift(1).rolling(h).min())
-        _add_feature_if(feature_df, f"temp_roll_max_{h}", data[temp_col].shift(1).rolling(h).max())
+        _add_feature_if(feature_df, f"temp_lag_{h}", _grouped_shift(grouped, temp_col, h))
+        _add_feature_if(feature_df, f"temp_roll_mean_{h}", _grouped_rolling(temp_shift_1, location_key, h, "mean"))
+        _add_feature_if(feature_df, f"temp_roll_std_{h}", _grouped_rolling(temp_shift_1, location_key, h, "std"))
+        _add_feature_if(feature_df, f"temp_roll_min_{h}", _grouped_rolling(temp_shift_1, location_key, h, "min"))
+        _add_feature_if(feature_df, f"temp_roll_max_{h}", _grouped_rolling(temp_shift_1, location_key, h, "max"))
         if dew_col in data.columns:
-            _add_feature_if(feature_df, f"dew_lag_{h}", data[dew_col].shift(h))
+            _add_feature_if(feature_df, f"dew_lag_{h}", _grouped_shift(grouped, dew_col, h))
 
     if time_col in data.columns:
         _add_feature_if(feature_df, "hour", data[time_col].dt.hour)
@@ -73,14 +101,14 @@ def load_temperature_data(filepath, excluded_features=None):
         _add_feature_if(feature_df, "year", data[time_col].dt.year)
 
     if dew_col in data.columns:
-        _add_feature_if(feature_df, "dew_lag_3", data[dew_col].shift(3))
+        _add_feature_if(feature_df, "dew_lag_3", _grouped_shift(grouped, dew_col, 3))
 
     if humidity_col in data.columns:
-        _add_feature_if(feature_df, "humidity_lag_3", data[humidity_col].shift(3))
-        _add_feature_if(feature_df, "humidity_roll_mean_6", data[humidity_col].shift(1).rolling(6).mean())
-        _add_feature_if(feature_df, "humidity_change", data[humidity_col] - data[humidity_col].shift(1))
+        _add_feature_if(feature_df, "humidity_lag_3", _grouped_shift(grouped, humidity_col, 3))
+        _add_feature_if(feature_df, "humidity_roll_mean_6", _grouped_rolling(humidity_shift_1, location_key, 6, "mean"))
+        _add_feature_if(feature_df, "humidity_change", data[humidity_col] - humidity_shift_1)
 
-    _add_feature_if(feature_df, "monthly_temp_mean", data[temp_col].shift(1).rolling(720).mean())
+    _add_feature_if(feature_df, "monthly_temp_mean", _grouped_rolling(temp_shift_1, location_key, 720, "mean"))
 
     if "cloud_cover_low" in data.columns:
         _add_feature_if(
@@ -100,7 +128,7 @@ def load_temperature_data(filepath, excluded_features=None):
     selected_feature_cols = [col for col in feature_df.columns if col not in excluded_features]
     feature_df = feature_df[selected_feature_cols].copy()
 
-    target = data[temp_col].shift(-1)
+    target = _grouped_shift(grouped, temp_col, -1)
     model_data = feature_df.copy()
     model_data["target"] = target
     trainable = model_data.loc[model_data["target"].notna()].copy()
