@@ -37,13 +37,13 @@ TARGETS = [
 ]
 
 TARGET_LABELS = {
-    "target_temperature_2m"  : "Temperature 2m (°C)",
-    "target_rain"            : "Rain (mm)",
+    "target_temperature_2m": "Temperature 2m (°C)",
+    "target_rain":           "Rain (mm)",
 }
 
 COLORS = {
-    "target_temperature_2m"  : ("#e63946", "#457b9d"),
-    "target_rain"            : ("#6a4c93", "#1982c4"),
+    "target_temperature_2m": ("#e63946", "#457b9d"),
+    "target_rain":           ("#6a4c93", "#1982c4"),
 }
 
 plt.rcParams.update({
@@ -89,26 +89,22 @@ for target in TARGETS:
     )
 
     metrics_dict[target] = {
-        "mae": mae,
-        "rmse": rmse,
-        "r2": r2,
-        "bias": bias,
-        "corr": corr,
+        "mae": mae, "rmse": rmse, "r2": r2, "bias": bias, "corr": corr,
         "step_mae_mean": float(step_mae.mean()),
-        "step_mae_std": float(step_mae.std()),
-        "step_mae_min": float(step_mae.min()),
-        "step_mae_max": float(step_mae.max()),
+        "step_mae_std":  float(step_mae.std()),
+        "step_mae_min":  float(step_mae.min()),
+        "step_mae_max":  float(step_mae.max()),
     }
 
     print(f"  {TARGET_LABELS[target]:<35} MAE = {mae:.4f}")
 
 mae_global = np.mean([m["mae"] for m in metrics_dict.values()])
-score = (2.5 / (1 + mae_global)) * (len(TARGETS) / 17) * 100
+score      = (2.5 / (1 + mae_global)) * (len(TARGETS) / 17) * 100
 score_competition_equivalent = (2.5 / (1 + mae_global)) * (5 / 17) * 100
 
 print(f"\n  Global MAE  : {mae_global:.4f}")
-print(f"  Score ({len(TARGETS)} targets)         : {score:.4f}")
-print(f"  Score (competition-equivalent 5/17): {score_competition_equivalent:.4f}")
+print(f"  Score ({len(TARGETS)} targets)               : {score:.4f}")
+print(f"  Score (competition-equivalent 5/17) : {score_competition_equivalent:.4f}")
 print(f"  Formula active: (2.5 / (1 + {mae_global:.4f})) × ({len(TARGETS)}/17) × 100")
 print(f"  Formula comp. : (2.5 / (1 + {mae_global:.4f})) × (5/17) × 100")
 
@@ -127,7 +123,7 @@ for target in TARGETS:
     ts = df.groupby("time")[[col_act, col_pred]].mean().reset_index()
 
     fig, ax = plt.subplots(figsize=(16, 4))
-    ax.plot(ts["time"], ts[col_act], color=c_act,  lw=1.2, alpha=0.9, label="Actual")
+    ax.plot(ts["time"], ts[col_act],  color=c_act,  lw=1.2, alpha=0.9,  label="Actual")
     ax.plot(ts["time"], ts[col_pred], color=c_pred, lw=1.0, alpha=0.75, label="Predicted", linestyle="--")
 
     mae = metrics_dict[target]["mae"]
@@ -157,10 +153,9 @@ for ax, target in zip(axes, TARGETS):
     label = TARGET_LABELS[target]
     c_act, _ = COLORS[target]
 
-    # Compute MAE per step from prediction records
     grp = df.groupby("step").apply(
         lambda g: mean_absolute_error(g[f"actual_{target}"], g[f"pred_{target}"]),
-        include_groups=False
+        include_groups=False,
     ).reset_index(name="mae")
 
     ax.plot(grp["step"], grp["mae"], color=c_act, lw=1.5, marker="o", markersize=3)
@@ -182,17 +177,17 @@ print(f"  Saved: {out_path}")
 # ---------------------------------------------------------------------------
 # 5. Score summary banner
 # ---------------------------------------------------------------------------
-print("\n" + "="*55)
+print("\n" + "=" * 55)
 print(f"  FINAL SCORE : {score:.4f}")
 print(f"  Global MAE  : {mae_global:.4f}")
-print("="*55)
+print("=" * 55)
 print("\nAll plots saved to:", PLOTS_DIR)
 
 # ---------------------------------------------------------------------------
 # 6. Write comprehensive txt report
 # ---------------------------------------------------------------------------
-rain_actual = df["actual_target_rain"].to_numpy()
-rain_pred = df["pred_target_rain"].to_numpy()
+rain_actual   = df["actual_target_rain"].to_numpy()
+rain_pred     = df["pred_target_rain"].to_numpy()
 rain_non_zero = rain_actual > 0
 
 lines = []
@@ -237,6 +232,8 @@ lines.append("NOTES")
 lines.append("-" * 52)
 lines.append("- Bias > 0 means overestimation on average.")
 lines.append("- For rain, lower dry-hour prediction mean indicates fewer false drizzle events.")
+lines.append("- Initial train window: 6 months (covers wet + dry season before first validation).")
+lines.append("- Rain rolling features use .sum() (total accumulation, not mean).")
 
 with open(REPORT_TXT, "w", encoding="utf-8") as f:
     f.write("\n".join(lines))

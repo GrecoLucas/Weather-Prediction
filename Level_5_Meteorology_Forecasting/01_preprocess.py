@@ -15,9 +15,26 @@ import pandas as pd
 # Paths
 # ---------------------------------------------------------------------------
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-RAW_CSV  = os.path.join(BASE_DIR, "..", "metherology_dataset.csv")  # corrigido: "metherology" → "meteorology"
 OUT_DIR  = os.path.join(BASE_DIR, "data")
 OUT_FILE = os.path.join(OUT_DIR, "processed.parquet")
+
+# Try the most likely dataset locations/names used in this repository.
+CSV_CANDIDATES = [
+	os.path.join(BASE_DIR, "..", "data", "meteorology_dataset.csv"),
+	os.path.join(BASE_DIR, "..", "meteorology_dataset.csv"),
+	os.path.join(BASE_DIR, "..", "metherology_dataset.csv"),
+]
+
+
+def resolve_raw_csv() -> str:
+	for path in CSV_CANDIDATES:
+		if os.path.exists(path):
+			return path
+	checked = "\n  - ".join(CSV_CANDIDATES)
+	raise FileNotFoundError(f"No meteorology CSV found. Checked:\n  - {checked}")
+
+
+RAW_CSV = resolve_raw_csv()
 
 os.makedirs(OUT_DIR, exist_ok=True)
 
@@ -44,22 +61,24 @@ print(f"  Locations : {df['location'].unique().tolist()}")
 
 # ---------------------------------------------------------------------------
 # 3. Cyclical Time Encoding
-#    sin/cos encoding ensures the model understands that 23h → 0h is a
-#    small step, not a jump across the whole scale.
+#    sin/cos ensures 23h → 0h is a small step, not a scale jump.
+#    hour_sin/cos retained: useful for humidity, cloud cover and rain
+#    which exhibit strong within-day cycles.
+#    day_of_year: linear position in year for seasonality.
 # ---------------------------------------------------------------------------
-hour       = df["time"].dt.hour
-month      = df["time"].dt.month
-day_of_yr  = df["time"].dt.day_of_year
+hour      = df["time"].dt.hour
+month     = df["time"].dt.month
+day_of_yr = df["time"].dt.day_of_year
 
-df["hour_sin"]     = np.sin(2 * np.pi * hour      / 24)
-df["hour_cos"]     = np.cos(2 * np.pi * hour      / 24)
-df["month_sin"]    = np.sin(2 * np.pi * month     / 12)
-df["month_cos"]    = np.cos(2 * np.pi * month     / 12)
-df["day_of_year"]  = day_of_yr
+df["hour_sin"]    = np.sin(2 * np.pi * hour  / 24)
+df["hour_cos"]    = np.cos(2 * np.pi * hour  / 24)
+df["month_sin"]   = np.sin(2 * np.pi * month / 12)
+df["month_cos"]   = np.cos(2 * np.pi * month / 12)
+df["day_of_year"] = day_of_yr
 
 # ---------------------------------------------------------------------------
 # 4. Cyclical Wind Direction Encoding
-#    Same idea: 359° and 1° are nearly the same direction.
+#    359° and 1° are nearly the same direction — sin/cos resolves this.
 # ---------------------------------------------------------------------------
 df["wind_dir_10m_sin"]  = np.sin(np.deg2rad(df["wind_direction_10m"]))
 df["wind_dir_10m_cos"]  = np.cos(np.deg2rad(df["wind_direction_10m"]))

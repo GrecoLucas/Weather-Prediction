@@ -1,44 +1,46 @@
 METEOROLOGY FORECASTING - MAIN METRICS
 ====================================================
-Rows        : 118,800
-Steps       : 40 (from 0 to 39)
+Rows        : 39,312
+Steps       : 1 (from 0 to 0)
 
 PER-TARGET METRICS
 ----------------------------------------------------
 Temperature 2m (°C):
-  MAE                : 2.024357
-  RMSE               : 2.597580
-  R2                 : 0.878699
-  Bias (pred-real)   : 0.209090
-  Corr (Pearson)     : 0.938060
-  Step MAE mean/std  : 2.023553 / 0.412664
-  Step MAE min/max   : 1.371243 / 2.985002
+  MAE                : 1.828082
+  RMSE               : 2.340172
+  R2                 : 0.847316
+  Bias (pred-real)   : 0.528271
+  Corr (Pearson)     : 0.924955
+  Step MAE mean/std  : 1.828082 / nan
+  Step MAE min/max   : 1.828082 / 1.828082
 
 Rain (mm):
-  MAE                : 0.165249
-  RMSE               : 0.652139
-  R2                 : 0.014525
-  Bias (pred-real)   : -0.126900
-  Corr (Pearson)     : 0.230545
-  Step MAE mean/std  : 0.163703 / 0.221185
-  Step MAE min/max   : 0.000033 / 0.784816
+  MAE                : 0.129518
+  RMSE               : 0.516827
+  R2                 : 0.020280
+  Bias (pred-real)   : -0.085919
+  Corr (Pearson)     : 0.217839
+  Step MAE mean/std  : 0.129518 / nan
+  Step MAE min/max   : 0.129518 / 0.129518
 
 GLOBAL METRICS
 ----------------------------------------------------
-Global MAE                      : 1.094803
-Score (2 targets)             : 14.040349
-Score (competition-equivalent)  : 35.100872
+Global MAE                      : 0.978800
+Score (2 targets)             : 14.863434
+Score (competition-equivalent)  : 37.158586
 
 RAIN DIAGNOSTICS
 ----------------------------------------------------
-Actual non-zero rate            : 0.183081
-Pred non-zero rate              : 0.114209
-Pred mean when actual=0         : 0.016793
-Pred mean when actual>0         : 0.122534
-Max actual rain                 : 22.800000
-Max predicted rain              : 3.215168
+Actual non-zero rate            : 0.186661
+Pred non-zero rate              : 0.122075
+Pred mean when actual=0         : 0.021153
+Pred mean when actual>0         : 0.091253
+Max actual rain                 : 11.600000
+Max predicted rain              : 2.209131
 
 NOTES
 ----------------------------------------------------
 - Bias > 0 means overestimation on average.
 - For rain, lower dry-hour prediction mean indicates fewer false drizzle events.
+- Initial train window: 6 months (covers wet + dry season before first validation).
+- Rain rolling features use .sum() (total accumulation, not mean).

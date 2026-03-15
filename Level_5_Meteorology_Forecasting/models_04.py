@@ -3,7 +3,16 @@ models_04.py
 ------------
 Model factory: returns a fast, lightweight model per target.
 
-Imported by 03_walk_forward.py -- not meant to be run directly.
+Imported by 03_walk_forward.py — not meant to be run directly.
+
+Changes vs previous version:
+  Temperature : unchanged — LightGBM with num_leaves=63 remains optimal.
+  Rain        : tweedie_variance_power 1.5 → 1.3
+                Rationale: hourly rain in Portugal is dominated by short,
+                intense convective events (80% zeros, P99=3.3mm, max=22.8mm).
+                power=1.5 (compound Poisson-Gamma) fits daily totals well;
+                power=1.3 (closer to Poisson) better matches the sparse,
+                bursty nature of hourly precipitation.
 """
 
 import lightgbm as lgb
@@ -18,8 +27,8 @@ TARGETS = [
 ]
 
 TARGET_SHORT = {
-    "target_temperature_2m" : "Temperature (C)",
-    "target_rain"           : "Rain (mm)",
+    "target_temperature_2m": "Temperature (C)",
+    "target_rain":           "Rain (mm)",
 }
 
 
@@ -27,13 +36,14 @@ def get_model(target: str):
     """
     Return a scikit-learn-compatible, unfitted model for `target`.
 
-    Temperature: LightGBM with num_leaves=63 -- strong diurnal cycle,
-                 heavy feature interaction, expressive enough for extremes.
+    Temperature : LightGBM — captures diurnal cycle and feature interactions
+                  efficiently. num_leaves=63 provides enough capacity for
+                  temperature extremes without overfitting.
 
-    Rain:        XGBoost Tweedie (power=1.5) -- purpose-built for zero-heavy
-                 right-skewed distributions. Outperforms HistGBM and two-stage
-                 classifiers on sparse rain data (R2 was negative with the
-                 LogisticRegression+HistGBM two-stage approach).
+    Rain        : XGBoost Tweedie (power=1.3) — purpose-built for zero-heavy
+                  right-skewed distributions. power=1.3 is closer to Poisson
+                  and better suited for the bursty, sparse nature of hourly
+                  precipitation vs the daily-total use case of power=1.5.
     """
     if target == "target_temperature_2m":
         return lgb.LGBMRegressor(
@@ -52,17 +62,12 @@ def get_model(target: str):
         )
 
     elif target == "target_rain":
-        # Tweedie regression natively handles the zero-heavy distribution:
-        #   - power=1.5 sits between Poisson (1.0) and Gamma (2.0),
-        #     matching the compound Poisson-Gamma nature of rainfall.
-        #   - Predictions are always >= 0 (no clip needed for sign).
-        #   - Avoids the 2.2x false-positive rate of the two-stage classifier.
         return xgb.XGBRegressor(
             n_estimators           = 600,
             learning_rate          = 0.05,
             max_depth              = 6,
             objective              = "reg:tweedie",
-            tweedie_variance_power = 1.5,
+            tweedie_variance_power = 1.3,    # CHANGED: 1.5 → 1.3 (better for hourly sparse rain)
             subsample              = 0.8,
             colsample_bytree       = 0.8,
             reg_alpha              = 0.1,
