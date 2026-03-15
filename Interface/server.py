@@ -218,6 +218,21 @@ class DashboardHandler(SimpleHTTPRequestHandler):
 
         return dataset_path
 
+    def _display_dataset_path(self, dataset_path):
+        normalized = os.path.normpath(str(dataset_path or "").strip())
+        if not normalized:
+            return normalized
+
+        try:
+            common = os.path.commonpath([ROOT_DIR, normalized])
+        except ValueError:
+            # Different drives on Windows.
+            return normalized
+
+        if common == ROOT_DIR:
+            return os.path.relpath(normalized, ROOT_DIR)
+        return normalized
+
     def handle_latest_report(self):
         if not os.path.exists(LATEST_REPORT_PATH):
             self._send_json(404, {"error": "No report found yet. Run an experiment first."})
@@ -502,7 +517,7 @@ class DashboardHandler(SimpleHTTPRequestHandler):
     def handle_level4_options(self):
         _reload_level4_module()
         meteorology_path = self._resolve_dataset_path(LEVEL4_METEOROLOGY_PATH)
-        accidents_path = LEVEL4_ACCIDENTS_PATH
+        accidents_path = self._resolve_dataset_path(LEVEL4_ACCIDENTS_PATH)
 
         if not os.path.exists(meteorology_path):
             self._send_json(400, {"error": f"Meteorology dataset not found: {meteorology_path}"})
@@ -523,8 +538,8 @@ class DashboardHandler(SimpleHTTPRequestHandler):
             {
                 "ok": True,
                 **options,
-                "datasetPath": meteorology_path,
-                "accidentsPath": accidents_path,
+                "datasetPath": self._display_dataset_path(meteorology_path),
+                "accidentsPath": self._display_dataset_path(accidents_path),
             },
         )
 
@@ -587,7 +602,7 @@ class DashboardHandler(SimpleHTTPRequestHandler):
             self._send_json(500, {"error": str(exc)})
             return
 
-        self._send_json(200, {"ok": True, **options, "datasetPath": dataset_path})
+        self._send_json(200, {"ok": True, **options, "datasetPath": self._display_dataset_path(dataset_path)})
 
     def handle_level5_report(self):
         try:
