@@ -86,7 +86,12 @@ def load_temperature_data(filepath, excluded_features=None):
         _add_feature_if(
             feature_df,
             "cloud_cover_low_bin",
-            pd.cut(data["cloud_cover_low"], bins=[0, 10, 40, 80, 100], labels=[0, 1, 2, 3]).astype(float),
+            pd.cut(
+                data["cloud_cover_low"],
+                bins=[0, 10, 40, 80, 100],
+                labels=[0, 1, 2, 3],
+                include_lowest=True,
+            ).astype(float),
         )
 
     if "pressure_msl" in data.columns and "surface_pressure" in data.columns:
@@ -98,7 +103,7 @@ def load_temperature_data(filepath, excluded_features=None):
     target = data[temp_col].shift(-1)
     model_data = feature_df.copy()
     model_data["target"] = target
-    trainable = model_data.dropna().copy()
+    trainable = model_data.loc[model_data["target"].notna()].copy()
 
     if len(trainable) == 0:
         raise ValueError("No trainable rows were produced after preprocessing.")
