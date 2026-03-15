@@ -192,6 +192,21 @@ function formatMetric(value) {
 function renderKPIs(prediction) {
   kpiGrid.innerHTML = "";
 
+  const hourlyProbabilities = Array.isArray(prediction.hourly)
+    ? prediction.hourly
+        .map((row) => Number(row.confidence))
+        .filter((value) => Number.isFinite(value))
+        .map((value) => Math.min(1, Math.max(0, value)))
+    : [];
+
+  const chanceOfRainToday = hourlyProbabilities.length
+    ? 1 -
+      hourlyProbabilities.reduce(
+        (acc, probability) => acc * (1 - probability),
+        1,
+      )
+    : Number(prediction.confidence || 0);
+
   const items = [
     {
       label: "Outcome",
@@ -199,9 +214,9 @@ function renderKPIs(prediction) {
       extra: `${prediction.location} on ${prediction.selectedDate}`,
     },
     {
-      label: "Confidence",
-      value: formatPercent(prediction.confidence),
-      extra: "Average predicted rain probability",
+      label: "Chance of Rain Today",
+      value: formatPercent(chanceOfRainToday),
+      extra: "Probability of at least one rainy hour today",
     },
     {
       label: "Rainy Hours",
