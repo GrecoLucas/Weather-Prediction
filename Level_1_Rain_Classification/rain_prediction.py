@@ -1,15 +1,16 @@
-import pandas as pd
+import argparse
+import os
+
 import numpy as np
-from sklearn.model_selection import train_test_split
+import pandas as pd
+from lightgbm import LGBMClassifier
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.metrics import classification_report, confusion_matrix, f1_score, precision_score, recall_score
+from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import LabelEncoder, StandardScaler
 from xgboost import XGBClassifier
-from lightgbm import LGBMClassifier
-import os
-import argparse
 
-def load_and_preprocess_data(filepath):
+def load_and_preprocess_data(filepath, return_context=False):
     """Loads dataset and performs initial preprocessing, cleaning, and feature engineering."""
     print(f"Loading data from {filepath}...")
     try:
@@ -45,6 +46,8 @@ def load_and_preprocess_data(filepath):
     df['location_encoded'] = le.fit_transform(df['location'])
     print(f"Locations encoded: {dict(zip(le.classes_, le.transform(le.classes_)))}")
 
+    context_df = df[['time', 'location', 'rain', 'rain_class']].copy()
+
     # Drop target-leaking and highly correlated features (based on EDA)
     cols_to_drop = [
         'time', 'location', 'rain', 'wind_speed_10m', 'wind_speed_100m',
@@ -65,6 +68,9 @@ def load_and_preprocess_data(filepath):
     # Reorder columns: features first, then target
     feature_order = [col for col in df_processed.columns if col != 'rain_class'] + ['rain_class']
     df_processed = df_processed[feature_order]
+
+    if return_context:
+        return df_processed.reset_index(drop=True), context_df.reset_index(drop=True)
 
     return df_processed
 
@@ -149,6 +155,14 @@ def get_models_and_params(scale_pos_weight=4.0, model_family="all", profile="bal
     return {name: all_models[name] for name in selected_names}
 
 
+def _fit_model(name, model, X_train, y_train, X_val=None, y_val=None):
+    if name == "XGBoost" and X_val is not None and y_val is not None and len(X_val) > 0:
+        model.fit(X_train, y_train, eval_set=[(X_val, y_val)], verbose=False)
+    else:
+        model.fit(X_train, y_train)
+    return model
+
+
 def evaluate_split(model, X, y):
     """Returns F1, precision, recall, confusion matrix and classification report for one split."""
     y_pred = model.predict(X)
@@ -187,10 +201,7 @@ def train_and_evaluate(df, model_family="all", profile="balanced"):
     for name, (model, chosen_params) in models_params.items():
         print(f"\n{'='*50}\nModel: {name}\n{'='*50}")
 
-        if name == "XGBoost":
-            model.fit(X_train, y_train, eval_set=[(X_val, y_val)], verbose=False)
-        else:
-            model.fit(X_train, y_train)
+        model = _fit_model(name, model, X_train, y_train, X_val, y_val)
 
         results[name] = {
             "model": model,
@@ -268,6 +279,146 @@ def generate_evaluation_report(results, split_sizes, output_path="model_metrics.
         else:
             f.write("    No significant overfitting detected.\n")
         f.write("=" * 60 + "\n")
+
+
+def get_prediction_options(filepath):
+    """Returns available locations and date range for the Level 1 prediction UI."""
+    df = pd.read_csv(filepath)
+    df.columns = [col.strip() for col in df.columns]
+    df = df.dropna(subset=["time", "location"])
+    df["time"] = pd.to_datetime(df["time"], errors="coerce")
+    df = df.dropna(subset=["time"])
+
+    available_days = pd.Index(df["time"].dt.date.unique()).sort_values()
+    locations = sorted(df["location"].astype(str).unique().tolist())
+
+    return {
+        "locations": locations,
+        "minDate": str(available_days.min()) if len(available_days) else None,
+        "maxDate": str(available_days.max()) if len(available_days) else None,
+    }
+
+
+def predict_rain_for_day(filepath, selected_date, location, model_family="all", profile="balanced"):
+    """Train on rows before a selected day and predict whether it will rain on that chosen day/location."""
+    processed_df, context_df = load_and_preprocess_data(filepath, return_context=True)
+    if processed_df is None:
+        raise ValueError(f"Could not load dataset from {filepath}")
+
+    prediction_day = pd.to_datetime(selected_date, errors="coerce")
+    if pd.isna(prediction_day):
+        raise ValueError(f"Invalid selected date: {selected_date}")
+    prediction_day = prediction_day.normalize()
+
+    context_df = context_df.copy()
+    context_df["prediction_day"] = context_df["time"].dt.normalize()
+
+    prediction_mask = context_df["prediction_day"].eq(prediction_day)
+    if location:
+        prediction_mask &= context_df["location"].astype(str).eq(str(location))
+
+    train_mask = context_df["prediction_day"].lt(prediction_day)
+
+    if prediction_mask.sum() == 0:
+        raise ValueError(f"No rows found for {location} on {prediction_day.date()}.")
+
+    if train_mask.sum() < 100:
+        raise ValueError(
+            f"Not enough historical rows before {prediction_day.date()} to train a model. Found {int(train_mask.sum())}."
+        )
+
+    train_df = processed_df.loc[train_mask].reset_index(drop=True)
+    prediction_df = processed_df.loc[prediction_mask].reset_index(drop=True)
+    prediction_context = context_df.loc[prediction_mask].reset_index(drop=True)
+
+    X_hist = train_df.drop(columns=["rain_class"])
+    y_hist = train_df["rain_class"]
+    X_pred = prediction_df.drop(columns=["rain_class"])
+    y_actual = prediction_df["rain_class"]
+
+    split_index = max(1, int(len(X_hist) * 0.9))
+    if split_index >= len(X_hist):
+        split_index = len(X_hist) - 1
+    if split_index <= 0:
+        raise ValueError("Not enough historical rows to create a validation split.")
+
+    X_train = X_hist.iloc[:split_index]
+    y_train = y_hist.iloc[:split_index]
+    X_val = X_hist.iloc[split_index:]
+    y_val = y_hist.iloc[split_index:]
+
+    scale_pos_weight = float((y_train == 0).sum() / max(1, (y_train == 1).sum()))
+    candidate_models = get_models_and_params(
+        scale_pos_weight=scale_pos_weight,
+        model_family=model_family,
+        profile=profile,
+    )
+
+    candidate_results = []
+    for name, (model, params) in candidate_models.items():
+        fitted_model = _fit_model(name, model, X_train, y_train, X_val, y_val)
+        val_metrics = evaluate_split(fitted_model, X_val, y_val)
+        candidate_results.append(
+            {
+                "name": name,
+                "params": params,
+                "model": fitted_model,
+                "validation": val_metrics,
+            }
+        )
+
+    best_candidate = max(candidate_results, key=lambda item: item["validation"]["f1"])
+    best_name = best_candidate["name"]
+    best_params = best_candidate["params"]
+
+    final_model, _ = get_models_and_params(
+        scale_pos_weight=scale_pos_weight,
+        model_family={"RandomForest": "rf", "XGBoost": "xgb", "LightGBM": "lgbm"}[best_name],
+        profile=profile,
+    )[best_name]
+    final_model = _fit_model(best_name, final_model, X_hist, y_hist, X_val, y_val)
+
+    hourly_pred = final_model.predict(X_pred)
+    if hasattr(final_model, "predict_proba"):
+        hourly_prob = final_model.predict_proba(X_pred)[:, 1]
+    else:
+        hourly_prob = hourly_pred.astype(float)
+
+    hourly_rows = []
+    for idx in range(len(prediction_context)):
+        hourly_rows.append(
+            {
+                "time": prediction_context.loc[idx, "time"].isoformat(),
+                "predictedRain": bool(hourly_pred[idx]),
+                "confidence": float(hourly_prob[idx]),
+                "observedRain": bool(y_actual.iloc[idx]),
+                "observedRainAmount": float(prediction_context.loc[idx, "rain"]),
+            }
+        )
+
+    average_confidence = float(np.mean(hourly_prob)) if len(hourly_prob) else 0.0
+    rainy_hours = int(np.sum(hourly_pred))
+    will_rain = rainy_hours > 0
+    observed_rain = bool(y_actual.max())
+
+    return {
+        "selectedDate": str(prediction_day.date()),
+        "location": str(location),
+        "modelName": best_name,
+        "chosenParams": best_params,
+        "willRain": will_rain,
+        "confidence": average_confidence,
+        "rainyHours": rainy_hours,
+        "totalHours": int(len(hourly_rows)),
+        "observedRain": observed_rain,
+        "validation": {
+            "f1": float(best_candidate["validation"]["f1"]),
+            "precision": float(best_candidate["validation"]["precision"]),
+            "recall": float(best_candidate["validation"]["recall"]),
+        },
+        "trainingSamples": int(len(X_hist)),
+        "hourly": hourly_rows,
+    }
 
 
 if __name__ == "__main__":

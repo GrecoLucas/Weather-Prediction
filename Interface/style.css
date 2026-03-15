@@ -128,8 +128,8 @@ h1 {
 	font-size: 0.86rem;
 }
 
-.card-control { grid-column: span 6; }
-.card-kpis { grid-column: span 6; }
+.card-control { grid-column: span 5; }
+.card-kpis { grid-column: span 7; }
 .card-ranking { grid-column: span 7; }
 .card-chart { grid-column: span 5; }
 .card-details { grid-column: span 8; }
@@ -137,7 +137,7 @@ h1 {
 
 .controls-grid {
 	display: grid;
-	grid-template-columns: repeat(3, minmax(0, 1fr));
+	grid-template-columns: repeat(2, minmax(0, 1fr));
 	gap: 0.8rem;
 }
 
@@ -199,6 +199,27 @@ select {
 	display: flex;
 	align-items: center;
 	gap: 0.7rem;
+}
+
+.badge {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	min-width: 88px;
+	padding: 0.35rem 0.55rem;
+	border-radius: 999px;
+	font-size: 0.82rem;
+	font-weight: 700;
+}
+
+.badge-rain {
+	background: rgba(214, 106, 45, 0.16);
+	color: #8a3f15;
+}
+
+.badge-clear {
+	background: rgba(43, 138, 62, 0.14);
+	color: #206534;
 }
 
 .upload-label {
@@ -353,6 +374,35 @@ tr.highlight {
 	padding: 0.8rem;
 	max-height: 220px;
 	overflow: auto;
+}
+
+.pre-box p {
+	margin: 0 0 0.7rem;
+}
+
+.pre-box p:last-child {
+	margin-bottom: 0;
+}
+
+.result-chip {
+	padding: 0.45rem 0.75rem;
+	border-radius: 999px;
+	font-size: 0.88rem;
+	font-weight: 700;
+	border: 1px solid var(--line);
+	background: rgba(255, 255, 255, 0.75);
+}
+
+.chip-rain {
+	background: rgba(214, 106, 45, 0.16);
+	color: #8a3f15;
+	border-color: rgba(214, 106, 45, 0.28);
+}
+
+.chip-clear {
+	background: rgba(43, 138, 62, 0.14);
+	color: #206534;
+	border-color: rgba(43, 138, 62, 0.24);
 }
 
 .log {

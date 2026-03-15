@@ -17,20 +17,30 @@
 		<div>
 			<p class="eyebrow">Meteorology ML Platform</p>
 			<h1>Weather Intelligence Studio</h1>
-			<p class="subtitle">Run classification experiments and present model performance with confidence.</p>
+			<p class="subtitle">Pick a date and location, train on earlier weather data, and predict whether it will rain.</p>
 		</div>
 		<div class="status-pill" id="status-pill">System ready</div>
 	</header>
 
 	<main class="layout">
 		<section class="card card-control">
-			<h2>Run Pipeline</h2>
-			<p class="card-intro">Connect your training script now. The UI is prepared for API integration and local report uploads.</p>
+			<h2>Level 1 Prediction</h2>
+			<p class="card-intro">The model is trained on rows before the selected day, then predicts the chosen day for the selected location.</p>
 
-			<form id="run-form" class="controls-grid">
+			<form id="prediction-form" class="controls-grid">
 				<label>
 					Dataset Path
 					<input type="text" id="dataset-path" value="metherology_dataset.csv" placeholder="Path to CSV dataset">
+				</label>
+
+				<label>
+					Date
+					<input type="date" id="selected-date">
+				</label>
+
+				<label>
+					Location
+					<select id="location-select"></select>
 				</label>
 
 				<label>
@@ -53,64 +63,55 @@
 				</label>
 
 				<div class="control-actions">
-					<button type="submit" class="btn btn-primary" id="run-btn">Run Experiment</button>
-					<button type="button" class="btn btn-secondary" id="load-demo-btn">Load Demo Report</button>
+					<button type="submit" class="btn btn-primary" id="predict-btn">Predict Rain</button>
+					<button type="button" class="btn btn-secondary" id="refresh-options-btn">Refresh Options</button>
 				</div>
 			</form>
 
-			<div class="upload-wrap">
-				<label for="metrics-upload" class="upload-label">or upload your model_metrics.txt</label>
-				<input id="metrics-upload" type="file" accept=".txt">
-			</div>
+			<p class="hint" id="dataset-range">Loading dataset information...</p>
 
 		</section>
 
 		<section class="card card-kpis">
-			<h2>Executive Snapshot</h2>
+			<h2>Prediction Snapshot</h2>
 			<div class="kpi-grid" id="kpi-grid"></div>
 		</section>
 
 		<section class="card card-ranking">
-			<h2>Model Ranking</h2>
+			<h2>Hourly Outlook</h2>
 			<div class="table-wrap">
 				<table>
 					<thead>
 						<tr>
-							<th>Rank</th>
-							<th>Model</th>
-							<th>Val F1</th>
-							<th>Test F1</th>
-							<th>Val Precision</th>
-							<th>Val Recall</th>
+							<th>Hour</th>
+							<th>Prediction</th>
+							<th>Confidence</th>
+							<th>Observed</th>
 						</tr>
 					</thead>
-					<tbody id="ranking-body"></tbody>
+					<tbody id="hourly-body"></tbody>
 				</table>
 			</div>
 		</section>
 
 		<section class="card card-chart">
 			<div class="section-head">
-				<h2>Performance Radar</h2>
-				<select id="metric-select" aria-label="Choose metric">
-					<option value="f1">F1</option>
-					<option value="precision">Precision</option>
-					<option value="recall">Recall</option>
-				</select>
+				<h2>Hourly Confidence</h2>
+				<p class="hint">Probability of rain for each hour in the selected day.</p>
 			</div>
 			<div id="bars" class="bars"></div>
 		</section>
 
 		<section class="card card-details">
 			<div class="section-head">
-				<h2>Model Deep Dive</h2>
-				<select id="model-select" aria-label="Choose model"></select>
+				<h2>Run Details</h2>
+				<div class="result-chip" id="prediction-chip">Awaiting prediction</div>
 			</div>
 
 			<div class="split-grid" id="split-grid"></div>
 
-			<h3>Confusion Matrix (Validation)</h3>
-			<div class="matrix" id="confusion-matrix"></div>
+			<h3>Prediction Notes</h3>
+			<div class="pre-box" id="prediction-notes"></div>
 
 			<h3>Chosen Hyperparameters</h3>
 			<pre id="hyperparams" class="pre-box"></pre>

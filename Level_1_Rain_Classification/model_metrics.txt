@@ -70,55 +70,55 @@ MODEL: XGBoost
 Chosen Hyperparameters : {'n_estimators': 400, 'learning_rate': 0.05, 'max_depth': 5, 'subsample': 0.8, 'colsample_bytree': 0.8, 'reg_lambda': 1, 'reg_alpha': 0.1, 'early_stopping_rounds': 30}
 
   --- Train Set ---
-  F1-Score  : 0.8025
-  Precision : 0.6928
-  Recall    : 0.9534
+  F1-Score  : 0.8033
+  Precision : 0.6935
+  Recall    : 0.9545
   Confusion Matrix:
-[[90744 10620]
- [ 1170 23955]]
+[[90767 10597]
+ [ 1144 23981]]
   Classification Report:
               precision    recall  f1-score   support
 
-           0     0.9873    0.8952    0.9390    101364
-           1     0.6928    0.9534    0.8025     25125
+           0     0.9876    0.8955    0.9393    101364
+           1     0.6935    0.9545    0.8033     25125
 
-    accuracy                         0.9068    126489
-   macro avg     0.8401    0.9243    0.8708    126489
-weighted avg     0.9288    0.9068    0.9119    126489
+    accuracy                         0.9072    126489
+   macro avg     0.8405    0.9250    0.8713    126489
+weighted avg     0.9292    0.9072    0.9123    126489
 
   --- Validation Set ---
-  F1-Score  : 0.7782
-  Precision : 0.6712
-  Recall    : 0.9258
+  F1-Score  : 0.7790
+  Precision : 0.6713
+  Recall    : 0.9280
   Confusion Matrix:
-[[11247  1424]
- [  233  2907]]
+[[11244  1427]
+ [  226  2914]]
   Classification Report:
               precision    recall  f1-score   support
 
-           0     0.9797    0.8876    0.9314     12671
-           1     0.6712    0.9258    0.7782      3140
+           0     0.9803    0.8874    0.9315     12671
+           1     0.6713    0.9280    0.7790      3140
 
-    accuracy                         0.8952     15811
-   macro avg     0.8255    0.9067    0.8548     15811
-weighted avg     0.9184    0.8952    0.9010     15811
+    accuracy                         0.8955     15811
+   macro avg     0.8258    0.9077    0.8553     15811
+weighted avg     0.9189    0.8955    0.9012     15811
 
   --- Test Set ---
-  F1-Score  : 0.7755
-  Precision : 0.6671
+  F1-Score  : 0.7754
+  Precision : 0.6670
   Recall    : 0.9258
   Confusion Matrix:
-[[11220  1451]
+[[11219  1452]
  [  233  2908]]
   Classification Report:
               precision    recall  f1-score   support
 
-           0     0.9797    0.8855    0.9302     12671
-           1     0.6671    0.9258    0.7755      3141
+           0     0.9797    0.8854    0.9301     12671
+           1     0.6670    0.9258    0.7754      3141
 
-    accuracy                         0.8935     15812
-   macro avg     0.8234    0.9057    0.8528     15812
-weighted avg     0.9176    0.8935    0.8995     15812
+    accuracy                         0.8934     15812
+   macro avg     0.8233    0.9056    0.8528     15812
+weighted avg     0.9175    0.8934    0.8994     15812
 
 
 ============================================================
@@ -184,7 +184,7 @@ MODEL COMPARISON SUMMARY (ranked by Validation F1)
 Rank  Model          Val F1    Test F1   Val Prec    Val Rec   
 ------------------------------------------------------------
 1     LightGBM       0.8014    0.7985    0.7229      0.8990    
-2     XGBoost        0.7782    0.7755    0.6712      0.9258    
+2     XGBoost        0.7790    0.7754    0.6713      0.9280    
 3     RandomForest   0.7486    0.7435    0.6265      0.9299    
 
 ============================================================

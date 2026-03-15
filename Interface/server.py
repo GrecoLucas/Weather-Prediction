@@ -1,16 +1,24 @@
 import json
+import importlib.util
 import os
 import subprocess
 import sys
 import time
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 
-
 ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 INTERFACE_DIR = os.path.join(ROOT_DIR, "Interface")
 MODEL_DIR = os.path.join(ROOT_DIR, "Level_1_Rain_Classification")
 MODEL_SCRIPT = os.path.join(MODEL_DIR, "rain_prediction.py")
 LATEST_REPORT_PATH = os.path.join(MODEL_DIR, "model_metrics.txt")
+
+model_spec = importlib.util.spec_from_file_location("rain_prediction_module", MODEL_SCRIPT)
+rain_prediction_module = importlib.util.module_from_spec(model_spec)
+assert model_spec and model_spec.loader
+model_spec.loader.exec_module(rain_prediction_module)
+
+get_prediction_options = rain_prediction_module.get_prediction_options
+predict_rain_for_day = rain_prediction_module.predict_rain_for_day
 
 
 class DashboardHandler(SimpleHTTPRequestHandler):
@@ -30,6 +38,10 @@ class DashboardHandler(SimpleHTTPRequestHandler):
             self.handle_latest_report()
             return
 
+        if self.path == "/api/level1-options":
+            self.handle_level1_options()
+            return
+
         if self.path in ["/", "/index.html"]:
             self.path = "/index.html"
 
@@ -40,7 +52,23 @@ class DashboardHandler(SimpleHTTPRequestHandler):
             self.handle_run_experiment()
             return
 
+        if self.path == "/api/predict-rain-day":
+            self.handle_predict_rain_day()
+            return
+
         self._send_json(404, {"error": "Not found"})
+
+    def _resolve_dataset_path(self, dataset_path):
+        dataset_path = str(dataset_path or os.path.join(ROOT_DIR, "metherology_dataset.csv")).strip()
+
+        if not os.path.isabs(dataset_path):
+            candidate_from_root = os.path.normpath(os.path.join(ROOT_DIR, dataset_path))
+            if os.path.exists(candidate_from_root):
+                dataset_path = candidate_from_root
+            else:
+                dataset_path = os.path.join(ROOT_DIR, os.path.basename(dataset_path))
+
+        return dataset_path
 
     def handle_latest_report(self):
         if not os.path.exists(LATEST_REPORT_PATH):
@@ -60,6 +88,20 @@ class DashboardHandler(SimpleHTTPRequestHandler):
             },
         )
 
+    def handle_level1_options(self):
+        dataset_path = self._resolve_dataset_path(os.path.join(ROOT_DIR, "metherology_dataset.csv"))
+        if not os.path.exists(dataset_path):
+            self._send_json(400, {"error": f"Dataset not found: {dataset_path}"})
+            return
+
+        try:
+            options = get_prediction_options(dataset_path)
+        except Exception as exc:
+            self._send_json(500, {"error": str(exc)})
+            return
+
+        self._send_json(200, {"ok": True, **options, "datasetPath": dataset_path})
+
     def handle_run_experiment(self):
         content_length = int(self.headers.get("Content-Length", "0"))
         body = self.rfile.read(content_length) if content_length > 0 else b"{}"
@@ -70,7 +112,7 @@ class DashboardHandler(SimpleHTTPRequestHandler):
             self._send_json(400, {"error": "Invalid JSON body."})
             return
 
-        dataset_path = str(payload.get("datasetPath") or os.path.join(ROOT_DIR, "metherology_dataset.csv")).strip()
+        dataset_path = self._resolve_dataset_path(payload.get("datasetPath"))
         model_family = str(payload.get("modelFamily") or "all").strip().lower()
         profile = str(payload.get("profile") or "balanced").strip().lower()
 
@@ -84,15 +126,6 @@ class DashboardHandler(SimpleHTTPRequestHandler):
         if profile not in valid_profiles:
             self._send_json(400, {"error": f"Invalid profile '{profile}'."})
             return
-
-        if not os.path.isabs(dataset_path):
-            candidate_from_root = os.path.normpath(os.path.join(ROOT_DIR, dataset_path))
-            if os.path.exists(candidate_from_root):
-                dataset_path = candidate_from_root
-            else:
-                # Fallback: if a UI-provided relative path escapes root (e.g. ../file.csv),
-                # still try locating the file by name inside the workspace root.
-                dataset_path = os.path.join(ROOT_DIR, os.path.basename(dataset_path))
 
         if not os.path.exists(dataset_path):
             self._send_json(400, {"error": f"Dataset not found: {dataset_path}"})
@@ -160,6 +193,50 @@ class DashboardHandler(SimpleHTTPRequestHandler):
                 "stdout": completed.stdout,
             },
         )
+
+    def handle_predict_rain_day(self):
+        content_length = int(self.headers.get("Content-Length", "0"))
+        body = self.rfile.read(content_length) if content_length > 0 else b"{}"
+
+        try:
+            payload = json.loads(body.decode("utf-8"))
+        except json.JSONDecodeError:
+            self._send_json(400, {"error": "Invalid JSON body."})
+            return
+
+        dataset_path = self._resolve_dataset_path(payload.get("datasetPath"))
+        selected_date = str(payload.get("selectedDate") or "").strip()
+        location = str(payload.get("location") or "").strip()
+        model_family = str(payload.get("modelFamily") or "all").strip().lower()
+        profile = str(payload.get("profile") or "balanced").strip().lower()
+
+        if not selected_date:
+            self._send_json(400, {"error": "selectedDate is required."})
+            return
+
+        if not location:
+            self._send_json(400, {"error": "location is required."})
+            return
+
+        if not os.path.exists(dataset_path):
+            self._send_json(400, {"error": f"Dataset not found: {dataset_path}"})
+            return
+
+        start_time = time.time()
+        try:
+            prediction = predict_rain_for_day(
+                filepath=dataset_path,
+                selected_date=selected_date,
+                location=location,
+                model_family=model_family,
+                profile=profile,
+            )
+        except Exception as exc:
+            self._send_json(500, {"error": str(exc)})
+            return
+
+        duration_ms = int((time.time() - start_time) * 1000)
+        self._send_json(200, {"ok": True, "prediction": prediction, "durationMs": duration_ms})
 
 
 def run_server(port=8000):

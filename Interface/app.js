@@ -147,440 +147,225 @@ const els = {
 	hyperparams: document.getElementById("hyperparams"),
 	runLog: document.getElementById("run-log"),
 };
+const statusPill = document.getElementById('status-pill');
+const predictionForm = document.getElementById('prediction-form');
+const datasetPathInput = document.getElementById('dataset-path');
+const selectedDateInput = document.getElementById('selected-date');
+const locationSelect = document.getElementById('location-select');
+const modelFamilySelect = document.getElementById('model-family');
+const profileSelect = document.getElementById('profile');
+const refreshOptionsBtn = document.getElementById('refresh-options-btn');
+const datasetRange = document.getElementById('dataset-range');
+const kpiGrid = document.getElementById('kpi-grid');
+const hourlyBody = document.getElementById('hourly-body');
+const bars = document.getElementById('bars');
+const splitGrid = document.getElementById('split-grid');
+const predictionNotes = document.getElementById('prediction-notes');
+const hyperparams = document.getElementById('hyperparams');
+const predictionChip = document.getElementById('prediction-chip');
+const runLog = document.getElementById('run-log');
+const kpiTemplate = document.getElementById('kpi-template');
 
-function parseReport(text) {
-	const normalized = text.replace(/\r/g, "");
+let currentPrediction = null;
 
-	const splitMatch = normalized.match(/Train\s*:\s*(\d+)[\s\S]*?Validation\s*:\s*(\d+)[\s\S]*?Test\s*:\s*(\d+)/i);
-	const splitSizes = splitMatch
-		? {
-				train: Number(splitMatch[1]),
-				validation: Number(splitMatch[2]),
-				test: Number(splitMatch[3]),
-			}
-		: { train: 0, validation: 0, test: 0 };
-
-	const models = {};
-	const sections = normalized.split(/\n={20,}\nMODEL:\s*/g);
-
-	for (let i = 1; i < sections.length; i += 1) {
-		const section = sections[i];
-		const firstLineBreak = section.indexOf("\n");
-		const modelName = section.slice(0, firstLineBreak).trim();
-		const body = section.slice(firstLineBreak);
-
-		const paramsMatch = body.match(/Chosen Hyperparameters\s*:\s*(\{[^\n]*\})/i);
-		const splitData = extractSplitData(body);
-
-		models[modelName] = {
-			name: modelName,
-			params: paramsMatch ? paramsMatch[1].trim() : "{}",
-			train: splitData.train,
-			validation: splitData.validation,
-			test: splitData.test,
-		};
-	}
-
-	const ranking = extractRanking(normalized);
-	applyRankingFallback(models, ranking);
-	const bestModelMatch = normalized.match(/BEST MODEL:\s*([^\n]+)/i);
-	const bestModel = bestModelMatch ? bestModelMatch[1].trim() : ranking[0]?.model;
-
-	return {
-		splitSizes,
-		models,
-		ranking,
-		bestModel,
-	};
-}
-
-function extractSplitData(modelBody) {
-	const getSplit = (splitName) => {
-		const splitRegex = new RegExp(
-			`---\\s*${splitName}\\s*Set\\s*---[\\s\\S]*?F1-Score\\s*:\\s*([\\d.]+)[\\s\\S]*?Precision\\s*:\\s*([\\d.]+)[\\s\\S]*?Recall\\s*:\\s*([\\d.]+)[\\s\\S]*?Confusion Matrix:\\s*\\n\\[\\[\\s*(\\d+)\\s+(\\d+)\\]\\s*\\n\\s*\\[\\s*(\\d+)\\s+(\\d+)\\]\\]`,
-			"i"
-		);
-		const match = modelBody.match(splitRegex);
-		if (!match) {
-			return {
-				f1: 0,
-				precision: 0,
-				recall: 0,
-				confusionMatrix: [[0, 0], [0, 0]],
-			};
-		}
-
-		return {
-			f1: Number(match[1]),
-			precision: Number(match[2]),
-			recall: Number(match[3]),
-			confusionMatrix: [
-				[Number(match[4]), Number(match[5])],
-				[Number(match[6]), Number(match[7])],
-			],
-		};
-	};
-
-	return {
-		train: getSplit("Train"),
-		validation: getSplit("Validation"),
-		test: getSplit("Test"),
-	};
-}
-
-function extractRanking(reportText) {
-	const lines = reportText.split("\n");
-	const ranking = [];
-	const rowRegex = /^\s*(\d+)\s+([A-Za-z0-9_\-]+)\s+([\d.]+)\s+([\d.]+)\s+([\d.]+)\s+([\d.]+)/;
-
-	for (const line of lines) {
-		const row = line.match(rowRegex);
-		if (row) {
-			ranking.push({
-				rank: Number(row[1]),
-				model: row[2],
-				valF1: Number(row[3]),
-				testF1: Number(row[4]),
-				valPrecision: Number(row[5]),
-				valRecall: Number(row[6]),
-			});
-		}
-	}
-
-	if (ranking.length > 0) {
-		return ranking;
-	}
-
-	const inferred = [];
-	return inferred;
-}
-
-function applyRankingFallback(models, ranking) {
-	ranking.forEach((row) => {
-		const model = models[row.model];
-		if (!model) {
-			return;
-		}
-
-		if (model.validation.f1 === 0) {
-			model.validation.f1 = row.valF1;
-		}
-		if (model.validation.precision === 0) {
-			model.validation.precision = row.valPrecision;
-		}
-		if (model.validation.recall === 0) {
-			model.validation.recall = row.valRecall;
-		}
-		if (model.test.f1 === 0) {
-			model.test.f1 = row.testF1;
-		}
-	});
-}
-
-function renderDashboard(parsed) {
-	APP_STATE.report = parsed;
-
-	if (!APP_STATE.selectedModel || !parsed.models[APP_STATE.selectedModel]) {
-		APP_STATE.selectedModel = parsed.bestModel || Object.keys(parsed.models)[0] || null;
-	}
-
-	renderKPIs(parsed);
-	renderRanking(parsed);
-	renderMetricBars(parsed);
-	renderModelOptions(parsed);
-	renderModelDetails(parsed, APP_STATE.selectedModel);
-}
-
-function renderKPIs(parsed) {
-	const bestName = parsed.bestModel;
-	const best = bestName ? parsed.models[bestName] : null;
-	const modelCount = Object.keys(parsed.models).length;
-
-	const snapshot = [
-		{
-			label: "Best Model",
-			value: bestName || "N/A",
-			extra: best ? `Validation F1: ${best.validation.f1.toFixed(4)}` : "No model parsed",
-		},
-		{
-			label: "Total Samples",
-			value: `${(parsed.splitSizes.train + parsed.splitSizes.validation + parsed.splitSizes.test).toLocaleString()}`,
-			extra: `Train ${parsed.splitSizes.train.toLocaleString()} | Val ${parsed.splitSizes.validation.toLocaleString()} | Test ${parsed.splitSizes.test.toLocaleString()}`,
-		},
-		{
-			label: "Candidates",
-			value: String(modelCount),
-			extra: "Models benchmarked in this run",
-		}
-	];
-
-	els.kpiGrid.innerHTML = "";
-	snapshot.forEach((item) => {
-		const node = els.kpiTemplate.content.firstElementChild.cloneNode(true);
-		node.querySelector(".kpi-label").textContent = item.label;
-		node.querySelector(".kpi-value").textContent = item.value;
-		node.querySelector(".kpi-extra").textContent = item.extra;
-		els.kpiGrid.appendChild(node);
-	});
-}
-
-function renderRanking(parsed) {
-	els.rankingBody.innerHTML = "";
-
-	const rows = parsed.ranking.length > 0
-		? parsed.ranking
-		: Object.values(parsed.models)
-				.map((m) => ({
-					model: m.name,
-					valF1: m.validation.f1,
-					testF1: m.test.f1,
-					valPrecision: m.validation.precision,
-					valRecall: m.validation.recall,
-				}))
-				.sort((a, b) => b.valF1 - a.valF1)
-				.map((item, idx) => ({ rank: idx + 1, ...item }));
-
-	rows.forEach((row) => {
-		const tr = document.createElement("tr");
-		if (row.model === parsed.bestModel) {
-			tr.classList.add("highlight");
-		}
-
-		tr.innerHTML = `
-			<td>${row.rank}</td>
-			<td>${row.model}</td>
-			<td>${row.valF1.toFixed(4)}</td>
-			<td>${row.testF1.toFixed(4)}</td>
-			<td>${row.valPrecision.toFixed(4)}</td>
-			<td>${row.valRecall.toFixed(4)}</td>
-		`;
-
-		els.rankingBody.appendChild(tr);
-	});
-}
-
-function renderMetricBars(parsed) {
-	const metric = APP_STATE.selectedMetric;
-	const rows = Object.values(parsed.models)
-		.map((m) => ({
-			name: m.name,
-			value: m.validation[metric],
-		}))
-		.sort((a, b) => b.value - a.value);
-
-	els.bars.innerHTML = "";
-	rows.forEach((row, idx) => {
-		const line = document.createElement("div");
-		line.className = "bar-row";
-		const width = Math.max(2, Math.round(row.value * 100));
-		line.innerHTML = `
-			<strong>${row.name}</strong>
-			<div class="bar-track">
-				<div class="bar-fill" style="width: ${width}%; background: ${METRIC_COLORS[idx % METRIC_COLORS.length]};"></div>
-			</div>
-			<span>${row.value.toFixed(4)}</span>
-		`;
-		els.bars.appendChild(line);
-	});
-}
-
-function renderModelOptions(parsed) {
-	const previousValue = APP_STATE.selectedModel;
-	const names = Object.keys(parsed.models);
-	els.modelSelect.innerHTML = "";
-
-	names.forEach((name) => {
-		const option = document.createElement("option");
-		option.value = name;
-		option.textContent = name;
-		els.modelSelect.appendChild(option);
-	});
-
-	if (previousValue && names.includes(previousValue)) {
-		els.modelSelect.value = previousValue;
-	} else {
-		els.modelSelect.value = parsed.bestModel || names[0] || "";
-	}
-}
-
-function renderModelDetails(parsed, modelName) {
-	const model = parsed.models[modelName];
-	if (!model) {
-		return;
-	}
-
-	APP_STATE.selectedModel = modelName;
-
-	els.splitGrid.innerHTML = "";
-	[
-		["Train", model.train],
-		["Validation", model.validation],
-		["Test", model.test],
-	].forEach(([label, data]) => {
-		const card = document.createElement("article");
-		card.className = "split-card";
-		card.innerHTML = `
-			<h4>${label}</h4>
-			<p class="split-stat">F1: <strong>${data.f1.toFixed(4)}</strong></p>
-			<p class="split-stat">Precision: <strong>${data.precision.toFixed(4)}</strong></p>
-			<p class="split-stat">Recall: <strong>${data.recall.toFixed(4)}</strong></p>
-		`;
-		els.splitGrid.appendChild(card);
-	});
-
-	const m = model.validation.confusionMatrix;
-	const cells = [
-		{ label: "TN", value: m[0][0] },
-		{ label: "FP", value: m[0][1] },
-		{ label: "FN", value: m[1][0] },
-		{ label: "TP", value: m[1][1] },
-	];
-
-	els.confusionMatrix.innerHTML = "";
-	cells.forEach((cell) => {
-		const div = document.createElement("div");
-		div.className = "cell";
-		div.innerHTML = `<span class="cell-label">${cell.label}</span><span class="cell-value">${cell.value.toLocaleString()}</span>`;
-		els.confusionMatrix.appendChild(div);
-	});
-
-	els.hyperparams.textContent = model.params;
+function log(message, type = 'info') {
+	const time = new Date().toLocaleTimeString();
+	const entry = document.createElement('p');
+	entry.className = `log-entry log-${type}`;
+	entry.innerHTML = `<span class="log-time">${time}</span>${message}`;
+	runLog.prepend(entry);
 }
 
 function setStatus(message) {
-	els.statusPill.textContent = message;
+	statusPill.textContent = message;
 }
 
-function addLog(message) {
-	const entry = document.createElement("p");
-	entry.className = "log-entry";
-	const now = new Date().toLocaleTimeString();
-	entry.innerHTML = `<span class="log-time">${now}</span>${message}`;
-	els.runLog.prepend(entry);
+function formatPercent(value) {
+	return `${(value * 100).toFixed(1)}%`;
 }
 
-function safeParseAndRender(text, sourceLabel) {
-	try {
-		const parsed = parseReport(text);
-		const hasModels = Object.keys(parsed.models).length > 0;
-		if (!hasModels) {
-			throw new Error("No models found in report.");
-		}
+function renderKPIs(prediction) {
+	kpiGrid.innerHTML = '';
 
-		renderDashboard(parsed);
-		setStatus(`Loaded from ${sourceLabel}`);
-		addLog(`Report ingested successfully from ${sourceLabel}.`);
-	} catch (err) {
-		setStatus("Error while parsing report");
-		addLog(`Parsing error: ${err.message}`);
+	const items = [
+		{
+			label: 'Outcome',
+			value: prediction.willRain ? 'Rain' : 'No rain',
+			extra: `${prediction.location} on ${prediction.selectedDate}`,
+		},
+		{
+			label: 'Confidence',
+			value: formatPercent(prediction.confidence),
+			extra: 'Average predicted rain probability',
+		},
+		{
+			label: 'Rainy Hours',
+			value: `${prediction.rainyHours}/${prediction.totalHours}`,
+			extra: 'Hours predicted as rainy',
+		},
+		{
+			label: 'Observed',
+			value: prediction.observedRain ? 'Rain seen' : 'No rain seen',
+			extra: 'Based on the rows in the dataset for that day',
+		},
+	];
+
+	for (const item of items) {
+		const node = kpiTemplate.content.cloneNode(true);
+		node.querySelector('.kpi-label').textContent = item.label;
+		node.querySelector('.kpi-value').textContent = item.value;
+		node.querySelector('.kpi-extra').textContent = item.extra;
+		kpiGrid.appendChild(node);
 	}
 }
 
-async function handleRunExperiment() {
+function renderHourlyTable(prediction) {
+	hourlyBody.innerHTML = '';
+	for (const row of prediction.hourly) {
+		const tr = document.createElement('tr');
+		if (row.predictedRain) tr.classList.add('highlight');
+		tr.innerHTML = `
+			<td>${new Date(row.time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</td>
+			<td><span class="badge ${row.predictedRain ? 'badge-rain' : 'badge-clear'}">${row.predictedRain ? 'Rain' : 'No rain'}</span></td>
+			<td>${formatPercent(row.confidence)}</td>
+			<td>${row.observedRain ? 'Rain' : 'No rain'}</td>
+		`;
+		hourlyBody.appendChild(tr);
+	}
+	if (!prediction.hourly.length) {
+		hourlyBody.innerHTML = '<tr><td colspan="4">No hourly rows found.</td></tr>';
+	}
+}
+
+function renderBars(prediction) {
+	bars.innerHTML = '';
+	for (const row of prediction.hourly) {
+		const value = Math.max(0.02, row.confidence);
+		const bar = document.createElement('div');
+		bar.className = 'bar-row';
+		bar.innerHTML = `
+			<span>${new Date(row.time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+			<div class="bar-track"><div class="bar-fill" style="width:${value * 100}%; background:${row.predictedRain ? 'var(--secondary)' : 'var(--accent)'}"></div></div>
+			<strong>${formatPercent(row.confidence)}</strong>
+		`;
+		bars.appendChild(bar);
+	}
+}
+
+function renderDetails(prediction) {
+	splitGrid.innerHTML = '';
+	const detailCards = [
+		{
+			title: 'Model',
+			stats: {
+				name: prediction.modelName,
+				training_samples: prediction.trainingSamples,
+				location: prediction.location,
+			},
+		},
+		{
+			title: 'Validation',
+			stats: prediction.validation,
+		},
+		{
+			title: 'Day Summary',
+			stats: {
+				selected_date: prediction.selectedDate,
+				rainy_hours: prediction.rainyHours,
+				total_hours: prediction.totalHours,
+			},
+		},
+	];
+
+	for (const item of detailCards) {
+		const card = document.createElement('article');
+		card.className = 'split-card';
+		card.innerHTML = `
+			<h4>${item.title}</h4>
+			${Object.entries(item.stats).map(([key, value]) => `<p class="split-stat"><strong>${key.replaceAll('_', ' ')}:</strong> ${typeof value === 'number' && value <= 1 ? value.toFixed(4) : value}</p>`).join('')}
+		`;
+		splitGrid.appendChild(card);
+	}
+
+	predictionChip.textContent = prediction.willRain ? 'Rain expected' : 'No rain expected';
+	predictionChip.className = `result-chip ${prediction.willRain ? 'chip-rain' : 'chip-clear'}`;
+	predictionNotes.innerHTML = `
+		<p><strong>Method:</strong> the selected model is trained on historical rows before ${prediction.selectedDate} and predicts each available hour for ${prediction.location} on that day.</p>
+		<p><strong>Decision rule:</strong> the daily label is "Rain" if at least one hour is predicted as rainy.</p>
+		<p><strong>Reality check:</strong> the dataset shows ${prediction.observedRain ? 'rain on that day' : 'no rain on that day'} for the selected rows.</p>
+	`;
+	hyperparams.textContent = JSON.stringify(prediction.chosenParams, null, 2);
+}
+
+function renderPrediction(prediction, durationMs) {
+	currentPrediction = prediction;
+	renderKPIs(prediction);
+	renderHourlyTable(prediction);
+	renderBars(prediction);
+	renderDetails(prediction);
+	setStatus(`Prediction ready in ${durationMs} ms`);
+	log(`Predicted ${prediction.selectedDate} for ${prediction.location} with ${prediction.modelName}.`);
+}
+
+async function loadOptions() {
+	setStatus('Loading dataset options...');
+	const response = await fetch('/api/level1-options');
+	const payload = await response.json();
+	if (!response.ok || !payload.ok) {
+		throw new Error(payload.error || 'Could not load dataset options.');
+	}
+
+	datasetPathInput.value = payload.datasetPath;
+	selectedDateInput.min = payload.minDate || '';
+	selectedDateInput.max = payload.maxDate || '';
+	selectedDateInput.value = selectedDateInput.value || payload.maxDate || '';
+	datasetRange.textContent = `Available data from ${payload.minDate} to ${payload.maxDate}.`;
+	locationSelect.innerHTML = payload.locations.map((location) => `<option value="${location}">${location}</option>`).join('');
+	setStatus('Options loaded');
+	log('Loaded available dates and locations.');
+}
+
+async function handlePrediction(event) {
+	event.preventDefault();
 	const payload = {
-		datasetPath: els.datasetPath.value.trim(),
-		modelFamily: els.modelFamily.value,
-		profile: els.profile.value,
+		datasetPath: datasetPathInput.value.trim(),
+		selectedDate: selectedDateInput.value,
+		location: locationSelect.value,
+		modelFamily: modelFamilySelect.value,
+		profile: profileSelect.value,
 	};
 
-	setStatus("Running model pipeline...");
-	addLog(`Run requested with dataset=${payload.datasetPath}, family=${payload.modelFamily}, profile=${payload.profile}.`);
+	setStatus('Running rain prediction...');
+	log(`Predicting ${payload.selectedDate} for ${payload.location} using ${payload.modelFamily}.`);
 
-	els.runBtn.disabled = true;
-	try {
-		const response = await fetch("/api/run-experiment", {
-			method: "POST",
-			headers: {
-				"Content-Type": "application/json",
-			},
-			body: JSON.stringify(payload),
-		});
-
-		const data = await response.json();
-		if (!response.ok) {
-			throw new Error(data.error || "Run failed.");
-		}
-
-		safeParseAndRender(data.report, "backend run");
-		const durationSeconds = ((data.durationMs || 0) / 1000).toFixed(1);
-		addLog(`Run completed in ${durationSeconds}s. Report loaded from backend.`);
-	} catch (err) {
-		setStatus("Run failed");
-		addLog(`Run failed: ${err.message}`);
-	} finally {
-		els.runBtn.disabled = false;
+	const response = await fetch('/api/predict-rain-day', {
+		method: 'POST',
+		headers: { 'Content-Type': 'application/json' },
+		body: JSON.stringify(payload),
+	});
+	const result = await response.json();
+	if (!response.ok || !result.ok) {
+		throw new Error(result.error || 'Prediction failed.');
 	}
+
+	renderPrediction(result.prediction, result.durationMs);
 }
 
-async function loadLatestBackendReport() {
-	try {
-		const response = await fetch("/api/latest-report");
-		if (!response.ok) {
-			return false;
-		}
-
-		const data = await response.json();
-		safeParseAndRender(data.report, "latest backend report");
-		addLog("Loaded latest saved report from backend.");
-		return true;
-	} catch (err) {
-		addLog(`Backend report check skipped: ${err.message}`);
-		return false;
-	}
-}
-
-function setupEventListeners() {
-	els.runForm.addEventListener("submit", async (event) => {
-		event.preventDefault();
-		await handleRunExperiment();
+predictionForm.addEventListener('submit', (event) => {
+	handlePrediction(event).catch((error) => {
+		setStatus('Prediction failed');
+		log(error.message, 'error');
 	});
+});
 
-	els.loadDemoBtn.addEventListener("click", () => {
-		safeParseAndRender(DEMO_REPORT, "demo bundle");
+refreshOptionsBtn.addEventListener('click', () => {
+	loadOptions().catch((error) => {
+		setStatus('Options failed');
+		log(error.message, 'error');
 	});
+});
 
-	els.metricsUpload.addEventListener("change", (event) => {
-		const file = event.target.files?.[0];
-		if (!file) {
-			return;
-		}
-
-		const reader = new FileReader();
-		reader.onload = () => {
-			safeParseAndRender(String(reader.result || ""), file.name);
-		};
-		reader.onerror = () => {
-			setStatus("Failed to read uploaded file");
-			addLog("File reading failed.");
-		};
-		reader.readAsText(file);
-	});
-
-	els.metricSelect.addEventListener("change", () => {
-		APP_STATE.selectedMetric = els.metricSelect.value;
-		if (APP_STATE.report) {
-			renderMetricBars(APP_STATE.report);
-			addLog(`Metric switched to ${METRIC_LABELS[APP_STATE.selectedMetric]}.`);
-		}
-	});
-
-	els.modelSelect.addEventListener("change", () => {
-		const modelName = els.modelSelect.value;
-		if (APP_STATE.report) {
-			renderModelDetails(APP_STATE.report, modelName);
-			addLog(`Deep dive changed to ${modelName}.`);
-		}
-	});
-}
-
-function bootstrap() {
-	setupEventListeners();
-	loadLatestBackendReport().then((loaded) => {
-		if (!loaded) {
-			safeParseAndRender(DEMO_REPORT, "initial demo");
-			addLog("Dashboard initialized with demo data. Start backend for live runs.");
-		}
-	});
-}
-
-bootstrap();
+loadOptions().catch((error) => {
+	setStatus('Startup failed');
+	log(error.message, 'error');
+});
