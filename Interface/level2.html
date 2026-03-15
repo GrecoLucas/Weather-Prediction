@@ -3,7 +3,7 @@
 <head>
 	<meta charset="UTF-8">
 	<meta name="viewport" content="width=device-width, initial-scale=1.0">
-	<title>Weather Intelligence Studio</title>
+	<title>Weather Intelligence Studio - Level 2</title>
 	<link rel="preconnect" href="https://fonts.googleapis.com">
 	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 	<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=DM+Serif+Display:ital@0;1&display=swap" rel="stylesheet">
@@ -17,10 +17,10 @@
 		<div>
 			<p class="eyebrow">Meteorology ML Platform</p>
 			<h1>Weather Intelligence Studio</h1>
-			<p class="subtitle">Pick a date and location, train on earlier weather data, and predict whether it will rain.</p>
+			<p class="subtitle">Forecast next-hour temperature across a selected day using your Level 2 feature engineering pipeline.</p>
 			<div class="level-nav">
-				<a class="level-link active" href="index.html">Level 1: Rain</a>
-				<a class="level-link" href="level2.html">Level 2: Temperature</a>
+				<a class="level-link" href="index.html">Level 1: Rain</a>
+				<a class="level-link active" href="level2.html">Level 2: Temperature</a>
 			</div>
 		</div>
 		<div class="status-pill" id="status-pill">System ready</div>
@@ -28,10 +28,10 @@
 
 	<main class="layout">
 		<section class="card card-control">
-			<h2>Level 1 Prediction</h2>
-			<p class="card-intro">The model is trained on rows before the selected day, then predicts the chosen day for the selected location.</p>
+			<h2>Level 2 Prediction</h2>
+			<p class="card-intro">Pick a day and model family. The backend trains on earlier rows and predicts hourly temperatures for the selected day.</p>
 
-			<form id="prediction-form" class="controls-grid">
+			<form id="level2-form" class="controls-grid">
 				<label>
 					Dataset Path
 					<input type="text" id="dataset-path" value="data/meteorology_dataset.csv" placeholder="Path to CSV dataset">
@@ -43,54 +43,47 @@
 				</label>
 
 				<label>
-					Location
-					<select id="location-select"></select>
+					Location (Optional)
+					<select id="location-select">
+						<option value="">All available locations</option>
+					</select>
 				</label>
 
 				<label>
 					Model Family
 					<select id="model-family">
-						<option value="all">All (RF + XGB + LGBM)</option>
-						<option value="lgbm">LightGBM only</option>
-						<option value="xgb">XGBoost only</option>
-						<option value="rf">RandomForest only</option>
-					</select>
-				</label>
-
-				<label>
-					Optimization Profile
-					<select id="profile">
-						<option value="balanced">Balanced F1</option>
-						<option value="recall">High Recall</option>
-						<option value="precision">High Precision</option>
+						<option value="lgbm">LightGBM</option>
+						<option value="xgb">XGBoost</option>
+						<option value="rf">RandomForest</option>
+						<option value="lr">Linear Regression</option>
+						<option value="vote">Voting (RF + XGB + LGBM)</option>
 					</select>
 				</label>
 
 				<div class="control-actions">
-					<button type="submit" class="btn btn-primary" id="predict-btn">Predict Rain</button>
+					<button type="submit" class="btn btn-primary" id="predict-btn">Predict Temperature</button>
 					<button type="button" class="btn btn-secondary" id="refresh-options-btn">Refresh Options</button>
 				</div>
 			</form>
 
 			<p class="hint" id="dataset-range">Loading dataset information...</p>
-
 		</section>
 
 		<section class="card card-kpis">
-			<h2>Prediction Snapshot</h2>
+			<h2>Temperature Snapshot</h2>
 			<div class="kpi-grid" id="kpi-grid"></div>
 		</section>
 
 		<section class="card card-ranking">
-			<h2>Hourly Outlook</h2>
+			<h2>Hourly Forecast</h2>
 			<div class="table-wrap">
 				<table>
 					<thead>
 						<tr>
 							<th>Hour</th>
-							<th>Prediction</th>
-							<th>Confidence</th>
-							<th>Observed</th>
+							<th>Predicted</th>
+							<th>Actual</th>
+							<th>Abs Error</th>
 						</tr>
 					</thead>
 					<tbody id="hourly-body"></tbody>
@@ -100,8 +93,8 @@
 
 		<section class="card card-chart">
 			<div class="section-head">
-				<h2>Hourly Confidence</h2>
-				<p class="hint">Probability of rain for each hour in the selected day.</p>
+				<h2>Predicted Temperature Curve</h2>
+				<p class="hint">Bars show model prediction by hour.</p>
 			</div>
 			<div id="bars" class="bars"></div>
 		</section>
@@ -116,9 +109,6 @@
 
 			<h3>Prediction Notes</h3>
 			<div class="pre-box" id="prediction-notes"></div>
-
-			<h3>Chosen Hyperparameters</h3>
-			<pre id="hyperparams" class="pre-box"></pre>
 		</section>
 
 		<section class="card card-log">
@@ -135,6 +125,6 @@
 		</article>
 	</template>
 
-	<script src="app.js"></script>
+	<script src="level2.js"></script>
 </body>
 </html>

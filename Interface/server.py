@@ -11,6 +11,8 @@ INTERFACE_DIR = os.path.join(ROOT_DIR, "Interface")
 MODEL_DIR = os.path.join(ROOT_DIR, "Level_1_Rain_Classification")
 MODEL_SCRIPT = os.path.join(MODEL_DIR, "rain_prediction.py")
 LATEST_REPORT_PATH = os.path.join(MODEL_DIR, "model_metrics.txt")
+LEVEL2_DIR = os.path.join(ROOT_DIR, "level2")
+LEVEL2_SCRIPT = os.path.join(LEVEL2_DIR, "temperature_prediction.py")
 
 model_spec = importlib.util.spec_from_file_location("rain_prediction_module", MODEL_SCRIPT)
 rain_prediction_module = importlib.util.module_from_spec(model_spec)
@@ -19,6 +21,14 @@ model_spec.loader.exec_module(rain_prediction_module)
 
 get_prediction_options = rain_prediction_module.get_prediction_options
 predict_rain_for_day = rain_prediction_module.predict_rain_for_day
+
+level2_spec = importlib.util.spec_from_file_location("temperature_prediction_module", LEVEL2_SCRIPT)
+temperature_prediction_module = importlib.util.module_from_spec(level2_spec)
+assert level2_spec and level2_spec.loader
+level2_spec.loader.exec_module(temperature_prediction_module)
+
+get_temperature_prediction_options = temperature_prediction_module.get_temperature_prediction_options
+predict_temperature_for_day = temperature_prediction_module.predict_temperature_for_day
 
 
 class DashboardHandler(SimpleHTTPRequestHandler):
@@ -42,6 +52,10 @@ class DashboardHandler(SimpleHTTPRequestHandler):
             self.handle_level1_options()
             return
 
+        if self.path == "/api/level2-options":
+            self.handle_level2_options()
+            return
+
         if self.path in ["/", "/index.html"]:
             self.path = "/index.html"
 
@@ -54,6 +68,10 @@ class DashboardHandler(SimpleHTTPRequestHandler):
 
         if self.path == "/api/predict-rain-day":
             self.handle_predict_rain_day()
+            return
+
+        if self.path == "/api/predict-temperature-day":
+            self.handle_predict_temperature_day()
             return
 
         self._send_json(404, {"error": "Not found"})
@@ -96,6 +114,20 @@ class DashboardHandler(SimpleHTTPRequestHandler):
 
         try:
             options = get_prediction_options(dataset_path)
+        except Exception as exc:
+            self._send_json(500, {"error": str(exc)})
+            return
+
+        self._send_json(200, {"ok": True, **options, "datasetPath": dataset_path})
+
+    def handle_level2_options(self):
+        dataset_path = self._resolve_dataset_path(os.path.join(ROOT_DIR, "data/meteorology_dataset.csv"))
+        if not os.path.exists(dataset_path):
+            self._send_json(400, {"error": f"Dataset not found: {dataset_path}"})
+            return
+
+        try:
+            options = get_temperature_prediction_options(dataset_path)
         except Exception as exc:
             self._send_json(500, {"error": str(exc)})
             return
@@ -230,6 +262,48 @@ class DashboardHandler(SimpleHTTPRequestHandler):
                 location=location,
                 model_family=model_family,
                 profile=profile,
+            )
+        except Exception as exc:
+            self._send_json(500, {"error": str(exc)})
+            return
+
+        duration_ms = int((time.time() - start_time) * 1000)
+        self._send_json(200, {"ok": True, "prediction": prediction, "durationMs": duration_ms})
+
+    def handle_predict_temperature_day(self):
+        content_length = int(self.headers.get("Content-Length", "0"))
+        body = self.rfile.read(content_length) if content_length > 0 else b"{}"
+
+        try:
+            payload = json.loads(body.decode("utf-8"))
+        except json.JSONDecodeError:
+            self._send_json(400, {"error": "Invalid JSON body."})
+            return
+
+        dataset_path = self._resolve_dataset_path(payload.get("datasetPath"))
+        selected_date = str(payload.get("selectedDate") or "").strip()
+        location = str(payload.get("location") or "").strip()
+        model_family = str(payload.get("modelFamily") or "lgbm").strip().lower()
+
+        if not selected_date:
+            self._send_json(400, {"error": "selectedDate is required."})
+            return
+
+        if model_family not in {"lr", "rf", "xgb", "lgbm", "vote"}:
+            self._send_json(400, {"error": f"Invalid modelFamily '{model_family}'."})
+            return
+
+        if not os.path.exists(dataset_path):
+            self._send_json(400, {"error": f"Dataset not found: {dataset_path}"})
+            return
+
+        start_time = time.time()
+        try:
+            prediction = predict_temperature_for_day(
+                filepath=dataset_path,
+                selected_date=selected_date,
+                location=location,
+                model_family=model_family,
             )
         except Exception as exc:
             self._send_json(500, {"error": str(exc)})
