@@ -299,6 +299,7 @@ def predict_snowfall_for_district(filepath, location):
     district_df["confidence"] = confidences
     predicted_snow = district_df["is_anomaly"] == 1
     snowy_rows = district_df[predicted_snow].copy()
+    raw_anomaly_rows = district_df[district_df["is_anomaly_raw"] == 1].copy()
     has_observed_snow_column = "snowfall" in district_df.columns
 
     hourly_rows = []
@@ -310,7 +311,6 @@ def predict_snowfall_for_district(filepath, location):
         hourly_rows.append(
             {
                 "time": row["time"].isoformat(),
-                "confidence": float(row["confidence"]),
                 "temperature": float(row.get("temperature_2m", np.nan)) if pd.notna(row.get("temperature_2m", np.nan)) else None,
                 "humidity": float(row.get("relative_humidity_2m", np.nan)) if pd.notna(row.get("relative_humidity_2m", np.nan)) else None,
                 "rain": float(row.get("rain", np.nan)) if pd.notna(row.get("rain", np.nan)) else None,
@@ -327,8 +327,10 @@ def predict_snowfall_for_district(filepath, location):
         ]
 
     snowy_hours = int(len(snowy_rows))
+    raw_anomaly_hours = int(len(raw_anomaly_rows))
     total_hours = int(len(district_df))
     snowy_rate = float((snowy_hours / total_hours) if total_hours else 0.0)
+    raw_anomaly_rate = float((raw_anomaly_hours / total_hours) if total_hours else 0.0)
     first_snow_hour = hourly_rows[0]["time"] if hourly_rows else None
     last_snow_hour = hourly_rows[-1]["time"] if hourly_rows else None
 
@@ -343,6 +345,8 @@ def predict_snowfall_for_district(filepath, location):
         "snowyHours": snowy_hours,
         "totalHours": total_hours,
         "snowyRate": snowy_rate,
+        "rawAnomalyHours": raw_anomaly_hours,
+        "rawAnomalyRate": raw_anomaly_rate,
         "firstSnowHour": first_snow_hour,
         "lastSnowHour": last_snow_hour,
         "confidence": float(np.mean(snowy_rows["confidence"])) if snowy_hours else 0.0,
