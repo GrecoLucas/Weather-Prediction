@@ -1,5 +1,6 @@
 import argparse
 import os
+import pickle
 
 import numpy as np
 import pandas as pd
@@ -9,6 +10,98 @@ from sklearn.metrics import classification_report, confusion_matrix, f1_score, p
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import LabelEncoder, StandardScaler
 from xgboost import XGBClassifier
+
+# ── Level 1 model cache ──────────────────────────────────────────────────────
+_MODEL_CACHE = {}  # (file_hash, model_family, profile) -> cached dict
+
+
+def _file_hash(filepath):
+    """Lightweight hash from mtime + size to detect dataset changes."""
+    s = os.stat(filepath)
+    return f"{s.st_mtime:.0f}_{s.st_size}"
+
+
+def _get_or_build_level1_model(filepath, processed_df, model_family="all", profile="balanced"):
+    """Return a cached global model for the requested model family/profile.
+
+    Trains on all locations combined using an 80/10/10 split, then caches to
+    disk and memory. If model_family='all', picks the best model by validation
+    F1. If model_family is one of rf/xgb/lgbm, uses only that model.
+    """
+    fhash = _file_hash(filepath)
+    cache_key = (fhash, str(model_family), str(profile))
+
+    if cache_key in _MODEL_CACHE:
+        print(f"[Level1] In-memory global model hit ({model_family}/{profile}).")
+        return _MODEL_CACHE[cache_key]
+
+    cache_dir = os.path.join(os.path.dirname(os.path.abspath(filepath)), ".cache", "level1")
+    os.makedirs(cache_dir, exist_ok=True)
+    cache_file = os.path.join(cache_dir, f"global_{model_family}_{profile}_{fhash}.pkl")
+
+    if os.path.exists(cache_file):
+        print(f"[Level1] Loading global model from disk: {cache_file}")
+        with open(cache_file, "rb") as f:
+            cached = pickle.load(f)
+        _MODEL_CACHE[cache_key] = cached
+        return cached
+
+    print(f"[Level1] Training global model on all locations ({model_family}/{profile})...")
+    X_all = processed_df.drop(columns=["rain_class"])
+    y_all = processed_df["rain_class"]
+
+    X_train, X_temp, y_train, y_temp = train_test_split(
+        X_all,
+        y_all,
+        test_size=0.2,
+        random_state=42,
+        stratify=y_all,
+    )
+    X_val, X_test, y_val, y_test = train_test_split(
+        X_temp,
+        y_temp,
+        test_size=0.5,
+        random_state=42,
+        stratify=y_temp,
+    )
+
+    scale_pos_weight = float((y_train == 0).sum() / max(1, (y_train == 1).sum()))
+    candidates = get_models_and_params(
+        scale_pos_weight=scale_pos_weight,
+        model_family=model_family,
+        profile=profile,
+    )
+
+    best_name, best_val_f1, best_model, best_params_dict = None, -1.0, None, None
+    for name, (model, params) in candidates.items():
+        fitted = _fit_model(name, model, X_train, y_train, X_val, y_val)
+        val_f1 = evaluate_split(fitted, X_val, y_val)["f1"]
+        if val_f1 > best_val_f1:
+            best_val_f1, best_name, best_model, best_params_dict = val_f1, name, fitted, params
+
+    train_metrics = evaluate_split(best_model, X_train, y_train)
+    val_metrics = evaluate_split(best_model, X_val, y_val)
+    test_metrics = evaluate_split(best_model, X_test, y_test)
+
+    cached = {
+        "model": best_model,
+        "modelName": best_name,
+        "chosenParams": best_params_dict,
+        "trainMetrics": train_metrics,
+        "valMetrics": val_metrics,
+        "testMetrics": test_metrics,
+        "trainingSamples": int(len(X_train)),
+    }
+
+    with open(cache_file, "wb") as f:
+        pickle.dump(cached, f)
+    _MODEL_CACHE[cache_key] = cached
+    print(f"[Level1] Global model saved → {cache_file}. Best: {best_name}, Val F1: {best_val_f1:.4f}")
+    return cached
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+
 
 def load_and_preprocess_data(filepath, return_context=False):
     """Loads dataset and performs initial preprocessing, cleaning, and feature engineering."""
@@ -300,7 +393,12 @@ def get_prediction_options(filepath):
 
 
 def predict_rain_for_day(filepath, selected_date, location, model_family="all", profile="balanced"):
-    """Train on rows before a selected day and predict whether it will rain on that chosen day/location."""
+    """Predict rain for *selected_date* / *location* using a pre-trained cached model.
+
+    The model is trained once per (dataset, model_family, profile) on ALL
+    locations and then saved to .cache/level1/. Subsequent calls reuse the
+    cached model instead of retraining.
+    """
     processed_df, context_df = load_and_preprocess_data(filepath, return_context=True)
     if processed_df is None:
         raise ValueError(f"Could not load dataset from {filepath}")
@@ -317,66 +415,23 @@ def predict_rain_for_day(filepath, selected_date, location, model_family="all", 
     if location:
         prediction_mask &= context_df["location"].astype(str).eq(str(location))
 
-    train_mask = context_df["prediction_day"].lt(prediction_day)
-
     if prediction_mask.sum() == 0:
         raise ValueError(f"No rows found for {location} on {prediction_day.date()}.")
 
-    if train_mask.sum() < 100:
-        raise ValueError(
-            f"Not enough historical rows before {prediction_day.date()} to train a model. Found {int(train_mask.sum())}."
-        )
-
-    train_df = processed_df.loc[train_mask].reset_index(drop=True)
-    prediction_df = processed_df.loc[prediction_mask].reset_index(drop=True)
-    prediction_context = context_df.loc[prediction_mask].reset_index(drop=True)
-
-    X_hist = train_df.drop(columns=["rain_class"])
-    y_hist = train_df["rain_class"]
-    X_pred = prediction_df.drop(columns=["rain_class"])
-    y_actual = prediction_df["rain_class"]
-
-    split_index = max(1, int(len(X_hist) * 0.9))
-    if split_index >= len(X_hist):
-        split_index = len(X_hist) - 1
-    if split_index <= 0:
-        raise ValueError("Not enough historical rows to create a validation split.")
-
-    X_train = X_hist.iloc[:split_index]
-    y_train = y_hist.iloc[:split_index]
-    X_val = X_hist.iloc[split_index:]
-    y_val = y_hist.iloc[split_index:]
-
-    scale_pos_weight = float((y_train == 0).sum() / max(1, (y_train == 1).sum()))
-    candidate_models = get_models_and_params(
-        scale_pos_weight=scale_pos_weight,
+    # Load (or build once) global model for the requested family/profile
+    cached = _get_or_build_level1_model(
+        filepath,
+        processed_df,
         model_family=model_family,
         profile=profile,
     )
+    final_model = cached["model"]
 
-    candidate_results = []
-    for name, (model, params) in candidate_models.items():
-        fitted_model = _fit_model(name, model, X_train, y_train, X_val, y_val)
-        val_metrics = evaluate_split(fitted_model, X_val, y_val)
-        candidate_results.append(
-            {
-                "name": name,
-                "params": params,
-                "model": fitted_model,
-                "validation": val_metrics,
-            }
-        )
+    prediction_df = processed_df.loc[prediction_mask].reset_index(drop=True)
+    prediction_context = context_df.loc[prediction_mask].reset_index(drop=True)
 
-    best_candidate = max(candidate_results, key=lambda item: item["validation"]["f1"])
-    best_name = best_candidate["name"]
-    best_params = best_candidate["params"]
-
-    final_model, _ = get_models_and_params(
-        scale_pos_weight=scale_pos_weight,
-        model_family={"RandomForest": "rf", "XGBoost": "xgb", "LightGBM": "lgbm"}[best_name],
-        profile=profile,
-    )[best_name]
-    final_model = _fit_model(best_name, final_model, X_hist, y_hist, X_val, y_val)
+    X_pred = prediction_df.drop(columns=["rain_class"])
+    y_actual = prediction_df["rain_class"]
 
     hourly_pred = final_model.predict(X_pred)
     if hasattr(final_model, "predict_proba"):
@@ -404,19 +459,17 @@ def predict_rain_for_day(filepath, selected_date, location, model_family="all", 
     return {
         "selectedDate": str(prediction_day.date()),
         "location": str(location),
-        "modelName": best_name,
-        "chosenParams": best_params,
+        "modelName": cached["modelName"],
+        "chosenParams": cached["chosenParams"],
         "willRain": will_rain,
         "confidence": average_confidence,
         "rainyHours": rainy_hours,
         "totalHours": int(len(hourly_rows)),
         "observedRain": observed_rain,
-        "validation": {
-            "f1": float(best_candidate["validation"]["f1"]),
-            "precision": float(best_candidate["validation"]["precision"]),
-            "recall": float(best_candidate["validation"]["recall"]),
-        },
-        "trainingSamples": int(len(X_hist)),
+        "globalTrainF1": float(cached["trainMetrics"]["f1"]),
+        "globalValF1": float(cached["valMetrics"]["f1"]),
+        "globalTestF1": float(cached["testMetrics"]["f1"]),
+        "trainingSamples": cached["trainingSamples"],
         "hourly": hourly_rows,
     }
 

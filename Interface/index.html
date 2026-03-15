@@ -63,21 +63,12 @@
           </label>
 
           <label>
-            Model Family
+            Model
             <select id="model-family">
-              <option value="all">All (RF + XGB + LGBM)</option>
-              <option value="lgbm">LightGBM only</option>
-              <option value="xgb">XGBoost only</option>
-              <option value="rf">RandomForest only</option>
-            </select>
-          </label>
-
-          <label>
-            Optimization Profile
-            <select id="profile">
-              <option value="balanced">Balanced F1</option>
-              <option value="recall">High Recall</option>
-              <option value="precision">High Precision</option>
+              <option value="all">Best (auto-select by validation F1)</option>
+              <option value="lgbm">LightGBM</option>
+              <option value="xgb">XGBoost</option>
+              <option value="rf">RandomForest</option>
             </select>
           </label>
 

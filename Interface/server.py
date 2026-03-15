@@ -24,6 +24,19 @@ model_spec.loader.exec_module(rain_prediction_module)
 get_prediction_options = rain_prediction_module.get_prediction_options
 predict_rain_for_day = rain_prediction_module.predict_rain_for_day
 
+
+def _reload_level1_module():
+    global get_prediction_options
+    global predict_rain_for_day
+
+    module_spec = importlib.util.spec_from_file_location("rain_prediction_module", MODEL_SCRIPT)
+    module = importlib.util.module_from_spec(module_spec)
+    assert module_spec and module_spec.loader
+    module_spec.loader.exec_module(module)
+
+    get_prediction_options = module.get_prediction_options
+    predict_rain_for_day = module.predict_rain_for_day
+
 level2_spec = importlib.util.spec_from_file_location("temperature_prediction_module", LEVEL2_SCRIPT)
 temperature_prediction_module = importlib.util.module_from_spec(level2_spec)
 assert level2_spec and level2_spec.loader
@@ -155,6 +168,7 @@ class DashboardHandler(SimpleHTTPRequestHandler):
         self._send_json(200, {"ok": True, **options, "datasetPath": dataset_path})
 
     def handle_level2_options(self):
+        _reload_level1_module()
         _reload_level2_module()
         dataset_path = self._resolve_dataset_path(os.path.join(ROOT_DIR, "data/meteorology_dataset.csv"))
         if not os.path.exists(dataset_path):
@@ -276,6 +290,7 @@ class DashboardHandler(SimpleHTTPRequestHandler):
         )
 
     def handle_predict_rain_day(self):
+        _reload_level1_module()
         content_length = int(self.headers.get("Content-Length", "0"))
         body = self.rfile.read(content_length) if content_length > 0 else b"{}"
 
