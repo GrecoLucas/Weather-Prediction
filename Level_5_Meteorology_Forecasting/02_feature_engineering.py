@@ -24,17 +24,27 @@ OUT_FILE = os.path.join(BASE_DIR, "data", "features.parquet")
 
 RAW_TO_TARGET = {
     "temperature_2m": "target_temperature_2m",
+    "dew_point_2m": "target_dew_point_2m",
+    "relative_humidity_2m": "target_relative_humidity_2m",
+    "pressure_msl": "target_pressure_msl",
+    "surface_pressure": "target_surface_pressure",
     "rain":           "target_rain",
 }
 
 # Lags de temperatura: apenas múltiplos de 24h — lags curtos são redundantes (r>0.99)
 TEMP_LAG_SHIFTS     = [24, 48, 72, 96, 120, 168]
+# Lags de ponto de orvalho
+DEW_LAG_SHIFTS      = [1, 6, 24, 48, 72]
 # Lags de chuva: manter todos — nenhum é negligenciável
 RAIN_LAG_SHIFTS     = [1, 12, 24, 48, 72, 96, 120, 168]
 # Lags de pressão
 PRESSURE_LAG_SHIFTS = [1, 6, 24, 48, 72]
+# Lags de pressão à superfície
+SURFACE_PRESSURE_LAG_SHIFTS = [1, 6, 24, 48, 72]
 # Lags de vento, humidade, nuvens
 AUX_LAG_SHIFTS      = [1, 6, 24, 48, 72]
+# Lags adicionais de humidade para capturar persistência semanal
+HUMIDITY_LAG_SHIFTS = [12, 168]
 
 
 def build_features(df: pd.DataFrame) -> pd.DataFrame:
@@ -58,6 +68,10 @@ def build_features(df: pd.DataFrame) -> pd.DataFrame:
         for s in TEMP_LAG_SHIFTS:
             grp[f"temperature_2m_lag_{s}h"] = grp["temperature_2m"].shift(s)
 
+        # 2b. Lags de ponto de orvalho
+        for s in DEW_LAG_SHIFTS:
+            grp[f"dew_point_2m_lag_{s}h"] = grp["dew_point_2m"].shift(s)
+
         # 3. Lags de chuva
         for s in RAIN_LAG_SHIFTS:
             grp[f"rain_lag_{s}h"] = grp["rain"].shift(s)
@@ -66,11 +80,17 @@ def build_features(df: pd.DataFrame) -> pd.DataFrame:
         for s in PRESSURE_LAG_SHIFTS:
             grp[f"pressure_msl_lag_{s}h"] = grp["pressure_msl"].shift(s)
 
+        for s in SURFACE_PRESSURE_LAG_SHIFTS:
+            grp[f"surface_pressure_lag_{s}h"] = grp["surface_pressure"].shift(s)
+
         # 5. Lags de vento, humidade e nuvens
         for s in AUX_LAG_SHIFTS:
             grp[f"wind_speed_10m_lag_{s}h"]    = grp["wind_speed_10m"].shift(s)
             grp[f"relative_humidity_lag_{s}h"] = grp["relative_humidity_2m"].shift(s)
             grp[f"cloud_cover_lag_{s}h"]       = grp["cloud_cover"].shift(s)
+
+        for s in HUMIDITY_LAG_SHIFTS:
+            grp[f"relative_humidity_lag_{s}h"] = grp["relative_humidity_2m"].shift(s)
 
         # Nuvens altas/médias: precursores de sistemas de chuva 12-24h antes
         for s in [12, 24]:
@@ -85,7 +105,12 @@ def build_features(df: pd.DataFrame) -> pd.DataFrame:
         grp["rain_roll_72h"]     = grp["rain"].rolling(72,  min_periods=1).sum()
         grp["rain_roll_168h"]    = grp["rain"].rolling(168, min_periods=1).sum()   # NEW
         grp["pressure_roll_24h"] = grp["pressure_msl"].rolling(24, min_periods=1).mean()
+        grp["pressure_roll_72h"] = grp["pressure_msl"].rolling(72, min_periods=1).mean()
+        grp["pressure_roll_std_24h"] = grp["pressure_msl"].rolling(24, min_periods=1).std().fillna(0.0)
+        grp["surface_pressure_roll_24h"] = grp["surface_pressure"].rolling(24, min_periods=1).mean()
         grp["humidity_roll_3h"]  = grp["relative_humidity_2m"].rolling(3, min_periods=1).mean()
+        grp["humidity_roll_24h"] = grp["relative_humidity_2m"].rolling(24, min_periods=1).mean()
+        grp["humidity_roll_std_24h"] = grp["relative_humidity_2m"].rolling(24, min_periods=1).std().fillna(0.0)
         grp["cloud_roll_3h"]     = grp["cloud_cover"].rolling(3, min_periods=1).mean()
 
         # 7. Tendência de pressão (NOVAS)
@@ -94,11 +119,21 @@ def build_features(df: pd.DataFrame) -> pd.DataFrame:
         grp["pressure_trend_6h"]  = grp["pressure_msl"] - grp["pressure_msl"].shift(6)
         grp["pressure_trend_12h"] = grp["pressure_msl"] - grp["pressure_msl"].shift(12)
         grp["pressure_trend_24h"] = grp["pressure_msl"] - grp["pressure_msl"].shift(24)
+        grp["surface_pressure_trend_24h"] = grp["surface_pressure"] - grp["surface_pressure"].shift(24)
+        grp["humidity_trend_3h"] = grp["relative_humidity_2m"] - grp["relative_humidity_2m"].shift(3)
+        grp["humidity_trend_24h"] = grp["relative_humidity_2m"] - grp["relative_humidity_2m"].shift(24)
+        grp["dew_trend_3h"] = grp["dew_point_2m"] - grp["dew_point_2m"].shift(3)
+
+        # Anomalias: desvio face ao nível médio recente
+        grp["pressure_anomaly_24h"] = grp["pressure_msl"] - grp["pressure_roll_24h"]
+        grp["humidity_anomaly_24h"] = grp["relative_humidity_2m"] - grp["humidity_roll_24h"]
 
         # 8. Interações físicas
         grp["temp_dew_spread"] = grp["temperature_2m"]  - grp["dew_point_2m"]
         grp["pressure_diff"]   = grp["pressure_msl"]    - grp["surface_pressure"]
         grp["wind_shear"]      = grp["wind_speed_100m"] - grp["wind_speed_10m"]
+        grp["humidity_temp_interaction"] = grp["relative_humidity_2m"] * grp["temperature_2m"]
+        grp["humidity_pressure_interaction"] = grp["relative_humidity_2m"] * grp["pressure_diff"]
 
         # 9. Location ID
         grp["location_id"] = loc_to_id[loc]

@@ -24,6 +24,7 @@ import pandas as pd
 # Paths
 # ---------------------------------------------------------------------------
 BASE_DIR    = os.path.dirname(os.path.abspath(__file__))
+sys.path.insert(0, BASE_DIR)
 DATA_DIR    = os.path.join(BASE_DIR, "data")
 RESULTS_DIR = os.path.join(BASE_DIR, "results")
 CACHE_DIR   = os.path.join(BASE_DIR, "models_cache")
@@ -33,26 +34,20 @@ FEATURES_PARQUET = os.path.join(DATA_DIR, "features.parquet")
 
 os.makedirs(CACHE_DIR, exist_ok=True)
 
-# ---------------------------------------------------------------------------
-# Target metadata (must match models_04.py)
-# ---------------------------------------------------------------------------
-TARGETS = [
-    "target_temperature_2m",
-    "target_rain",
-]
-
-TARGET_LABELS = {
-    "target_temperature_2m": "Temperature 2m",
-    "target_rain":           "Rain",
-}
-
-TARGET_UNITS = {
-    "target_temperature_2m": "°C",
-    "target_rain":           "mm",
-}
+from models_04 import (
+    TARGETS,
+    TARGET_LABELS,
+    TARGET_UNITS,
+    TARGET_MODEL_LABELS,
+    get_model,
+)
 
 CACHE_FILES = {
     "target_temperature_2m": os.path.join(CACHE_DIR, "lgbm_temperature_2m.pkl"),
+    "target_dew_point_2m": os.path.join(CACHE_DIR, "lgbm_dew_point_2m.pkl"),
+    "target_relative_humidity_2m": os.path.join(CACHE_DIR, "lgbm_relative_humidity_2m.pkl"),
+    "target_pressure_msl": os.path.join(CACHE_DIR, "lgbm_pressure_msl.pkl"),
+    "target_surface_pressure": os.path.join(CACHE_DIR, "lgbm_surface_pressure.pkl"),
     "target_rain":           os.path.join(CACHE_DIR, "xgb_rain.pkl"),
 }
 
@@ -62,6 +57,25 @@ NON_FEATURE_COLS = set(TARGETS) | {"time", "location"}
 
 def _get_feature_cols(df: pd.DataFrame) -> list:
     return [c for c in df.columns if c not in NON_FEATURE_COLS]
+
+
+def _ensure_features_file() -> None:
+    required_columns = set(TARGETS) | {"time", "location"}
+
+    if os.path.exists(FEATURES_PARQUET):
+        try:
+            feature_columns = set(pd.read_parquet(FEATURES_PARQUET, columns=None).columns)
+            if required_columns.issubset(feature_columns):
+                return
+        except Exception:
+            pass
+
+    import subprocess
+    for script in ["01_preprocess.py", "02_feature_engineering.py"]:
+        subprocess.run(
+            [sys.executable, os.path.join(BASE_DIR, script)],
+            check=True,
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -186,10 +200,6 @@ def _load_or_train(target: str, X_train: pd.DataFrame, y_train: pd.Series) -> tu
         except Exception:
             pass  # corrupt cache → retrain
 
-    # Import model factory from models_04 (sibling of this file)
-    sys.path.insert(0, BASE_DIR)
-    from models_04 import get_model
-
     model = get_model(target)
     model.fit(X_train, y_train)
 
@@ -222,13 +232,7 @@ def predict_meteorology_for_location(
     # -----------------------------------------------------------------------
     # 1. Ensure features exist
     # -----------------------------------------------------------------------
-    if not os.path.exists(FEATURES_PARQUET):
-        import subprocess
-        for script in ["01_preprocess.py", "02_feature_engineering.py"]:
-            subprocess.run(
-                [sys.executable, os.path.join(BASE_DIR, script)],
-                check=True,
-            )
+    _ensure_features_file()
 
     df = pd.read_parquet(FEATURES_PARQUET)
     df = df.sort_values(["time", "location"]).reset_index(drop=True)
@@ -274,11 +278,13 @@ def predict_meteorology_for_location(
     predictions = []
     from_cache_all = True
     cache_status = {}
+    model_info = {}
 
     for target in TARGETS:
         y_train = train_df[target]
         model, from_cache = _load_or_train(target, X_train, y_train)
         cache_status[target] = from_cache
+        model_info[target] = TARGET_MODEL_LABELS[target]
         if not from_cache:
             from_cache_all = False
 
@@ -289,6 +295,8 @@ def predict_meteorology_for_location(
             pred = max(0.0, pred)
             if pred < 0.1:
                 pred = 0.0
+        elif target == "target_relative_humidity_2m":
+            pred = float(np.clip(pred, 0.0, 100.0))
 
         # Actual value for the next day (target column = shift(-24h) of the raw var)
         actual_val = input_row[target].iloc[0]
@@ -326,6 +334,7 @@ def predict_meteorology_for_location(
         "totalLabels": 17,
         "fromCache":   from_cache_all,
         "cacheStatus": cache_status,
+        "modelInfo":   model_info,
         "trainingSamples": len(train_df),
         "inputTime":   str(input_row["time"].iloc[0]),
         "durationMs":  duration_ms,

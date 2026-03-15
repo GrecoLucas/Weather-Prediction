@@ -16,6 +16,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
 from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
+from models_04 import TARGETS, TARGET_LABELS, TARGET_UNITS
 
 # ---------------------------------------------------------------------------
 # Paths
@@ -27,23 +28,18 @@ REPORT_TXT  = os.path.join(BASE_DIR, "results", "main_metrics_report.txt")
 
 os.makedirs(PLOTS_DIR, exist_ok=True)
 
-# ---------------------------------------------------------------------------
-# Target metadata
-# ---------------------------------------------------------------------------
-TARGETS = [
-    "target_temperature_2m",
-    "target_rain",
-]
-
-TARGET_LABELS = {
-    "target_temperature_2m": "Temperature 2m (°C)",
-    "target_rain":           "Rain (mm)",
-}
-
 COLORS = {
     "target_temperature_2m": ("#e63946", "#457b9d"),
+    "target_dew_point_2m": ("#ff7f51", "#2a9d8f"),
+    "target_relative_humidity_2m": ("#118ab2", "#06d6a0"),
+    "target_pressure_msl": ("#f4a261", "#264653"),
+    "target_surface_pressure": ("#8ecae6", "#023047"),
     "target_rain":           ("#6a4c93", "#1982c4"),
 }
+
+
+def get_target_label_with_unit(target: str) -> str:
+    return f"{TARGET_LABELS[target]} ({TARGET_UNITS[target]})"
 
 plt.rcParams.update({
     "figure.facecolor" : "#1a1a2e",
@@ -86,7 +82,7 @@ for target in TARGETS:
         "mae": mae, "rmse": rmse, "r2": r2, "bias": bias, "corr": corr,
     }
 
-    print(f"  {TARGET_LABELS[target]:<35} MAE = {mae:.4f}")
+    print(f"  {get_target_label_with_unit(target):<35} MAE = {mae:.4f}")
 
 mae_global = np.mean([m["mae"] for m in metrics_dict.values()])
 score      = (2.5 / (1 + mae_global)) * (len(TARGETS) / 17) * 100
@@ -104,7 +100,7 @@ print(f"  Formula comp. : (2.5 / (1 + {mae_global:.4f})) × (5/17) × 100")
 print("\nGenerating actual vs predicted plots …")
 
 for target in TARGETS:
-    label    = TARGET_LABELS[target]
+    label    = get_target_label_with_unit(target)
     col_act  = f"actual_{target}"
     col_pred = f"pred_{target}"
     c_act, c_pred = COLORS[target]
@@ -143,9 +139,11 @@ print("\nAll plots saved to:", PLOTS_DIR)
 # ---------------------------------------------------------------------------
 # 5. Write comprehensive txt report
 # ---------------------------------------------------------------------------
-rain_actual   = df["actual_target_rain"].to_numpy()
-rain_pred     = df["pred_target_rain"].to_numpy()
-rain_non_zero = rain_actual > 0
+has_rain_target = "target_rain" in TARGETS and "actual_target_rain" in df.columns and "pred_target_rain" in df.columns
+if has_rain_target:
+    rain_actual   = df["actual_target_rain"].to_numpy()
+    rain_pred     = df["pred_target_rain"].to_numpy()
+    rain_non_zero = rain_actual > 0
 
 lines = []
 lines.append("METEOROLOGY FORECASTING - MAIN METRICS")
@@ -157,7 +155,7 @@ lines.append("PER-TARGET METRICS")
 lines.append("-" * 52)
 for target in TARGETS:
     m = metrics_dict[target]
-    lines.append(f"{TARGET_LABELS[target]}:")
+    lines.append(f"{get_target_label_with_unit(target)}:")
     lines.append(f"  MAE                : {m['mae']:.6f}")
     lines.append(f"  RMSE               : {m['rmse']:.6f}")
     lines.append(f"  R2                 : {m['r2']:.6f}")
@@ -172,15 +170,16 @@ lines.append(f"Score ({len(TARGETS)} targets)             : {score:.6f}")
 lines.append(f"Score (competition-equivalent)  : {score_competition_equivalent:.6f}")
 lines.append("")
 
-lines.append("RAIN DIAGNOSTICS")
-lines.append("-" * 52)
-lines.append(f"Actual non-zero rate            : {np.mean(rain_non_zero):.6f}")
-lines.append(f"Pred non-zero rate              : {np.mean(rain_pred > 0):.6f}")
-lines.append(f"Pred mean when actual=0         : {rain_pred[~rain_non_zero].mean():.6f}")
-lines.append(f"Pred mean when actual>0         : {rain_pred[rain_non_zero].mean():.6f}")
-lines.append(f"Max actual rain                 : {rain_actual.max():.6f}")
-lines.append(f"Max predicted rain              : {rain_pred.max():.6f}")
-lines.append("")
+if has_rain_target:
+    lines.append("RAIN DIAGNOSTICS")
+    lines.append("-" * 52)
+    lines.append(f"Actual non-zero rate            : {np.mean(rain_non_zero):.6f}")
+    lines.append(f"Pred non-zero rate              : {np.mean(rain_pred > 0):.6f}")
+    lines.append(f"Pred mean when actual=0         : {rain_pred[~rain_non_zero].mean():.6f}")
+    lines.append(f"Pred mean when actual>0         : {rain_pred[rain_non_zero].mean():.6f}")
+    lines.append(f"Max actual rain                 : {rain_actual.max():.6f}")
+    lines.append(f"Max predicted rain              : {rain_pred.max():.6f}")
+    lines.append("")
 
 lines.append("NOTES")
 lines.append("-" * 52)

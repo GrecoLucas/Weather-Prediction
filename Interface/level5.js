@@ -43,19 +43,28 @@ function renderKPIs(data) {
 
   const score     = data.score        ?? cachedReport?.score;
   const globalMAE = data.globalMAE    ?? cachedReport?.globalMAE;
-  const nTargets  = data.nTargets     ?? cachedReport?.nTargets  ?? 2;
+  const nTargets  = data.nTargets     ?? cachedReport?.nTargets  ?? 0;
   const total     = data.totalLabels  ?? 17;
 
-  const perTarget = data.perTargetMAE ?? {};
-  const tempMAE   = perTarget["target_temperature_2m"] ?? cachedReport?.perTarget?.["target_temperature_2m"]?.mae;
-  const rainMAE   = perTarget["target_rain"]           ?? cachedReport?.perTarget?.["target_rain"]?.mae;
+  const livePerTarget = data.perTargetMAE ?? {};
+  const reportPerTarget = cachedReport?.perTarget ?? {};
 
-  const items = [
+  const summaryItems = [
     { label: "Competition Score",  value: score     != null ? fmt(score, 2)     : "–", extra: `Formula: 2.5/(1+MAE) × (${nTargets}/${total}) × 100` },
     { label: "Global MAE",        value: globalMAE != null ? fmt(globalMAE, 4) : "–", extra: "Mean across all targets" },
-    { label: "Temperature MAE",   value: tempMAE   != null ? fmt(tempMAE, 4)   : "–", extra: "Temperature 2m (°C)" },
-    { label: "Rain MAE",          value: rainMAE   != null ? fmt(rainMAE, 4)   : "–", extra: "Rain (mm), Tweedie XGBoost" },
   ];
+
+  const perTargetItems = Object.entries({ ...reportPerTarget, ...Object.fromEntries(
+    Object.entries(livePerTarget).map(([key, mae]) => [key, { ...(reportPerTarget[key] ?? {}), mae }])
+  )})
+    .sort((a, b) => (a[1]?.label || a[0]).localeCompare(b[1]?.label || b[0]))
+    .map(([key, meta]) => ({
+      label: `${meta?.label || key.replace("target_", "")} MAE`,
+      value: meta?.mae != null ? fmt(meta.mae, 4) : "–",
+      extra: meta?.unit ? `Unit: ${meta.unit}` : "Per-target validation MAE",
+    }));
+
+  const items = [...summaryItems, ...perTargetItems];
 
   for (const item of items) {
     const node = kpiTemplate.content.cloneNode(true);
@@ -106,8 +115,13 @@ function renderDetails(prediction) {
 
   const fromCache     = prediction.fromCache;
   const cacheStatus   = prediction.cacheStatus ?? {};
+  const modelInfo     = prediction.modelInfo ?? {};
   const cacheEntries  = Object.entries(cacheStatus)
     .map(([t, c]) => `${t.replace("target_", "")}: ${c ? "✓ cached" : "newly trained"}`)
+    .join("<br>");
+
+  const modelEntries = Object.entries(modelInfo)
+    .map(([t, label]) => `${t.replace("target_", "")}: ${label}`)
     .join("<br>");
 
   const cards = [
@@ -123,8 +137,7 @@ function renderDetails(prediction) {
     {
       title: "Models",
       stats: {
-        temperature_model: "LightGBM (LGBM)",
-        rain_model:        "XGBoost Tweedie",
+        targets:           prediction.predictions.length,
         cache_status:      fromCache ? "All loaded from cache" : "Newly trained",
       },
     },
@@ -150,9 +163,16 @@ function renderDetails(prediction) {
     splitGrid.appendChild(card);
   }
 
+  if (Object.keys(modelInfo).length) {
+    const card = document.createElement("article");
+    card.className = "split-card";
+    card.innerHTML = `<h4>Model Families</h4><p class="split-stat" style="line-height:1.8">${modelEntries}</p>`;
+    splitGrid.appendChild(card);
+  }
+
   const score     = prediction.score;
   const globalMAE = prediction.globalMAE;
-  const nTargets  = prediction.nTargets  ?? 2;
+  const nTargets  = prediction.nTargets  ?? prediction.predictions.length;
   const total     = prediction.totalLabels ?? 17;
 
   scoreFormula.innerHTML = score != null

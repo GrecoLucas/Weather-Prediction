@@ -19,17 +19,54 @@ import lightgbm as lgb
 import xgboost as xgb
 
 # ---------------------------------------------------------------------------
-# Target variable names (2 targets)
+# Target variable names
 # ---------------------------------------------------------------------------
 TARGETS = [
     "target_temperature_2m",
+    "target_dew_point_2m",
+    "target_relative_humidity_2m",
+    "target_pressure_msl",
+    "target_surface_pressure",
     "target_rain",
 ]
 
 TARGET_SHORT = {
     "target_temperature_2m": "Temperature (C)",
+    "target_dew_point_2m": "Dew Point (C)",
+    "target_relative_humidity_2m": "Humidity (%)",
+    "target_pressure_msl": "MSL Pressure (hPa)",
+    "target_surface_pressure": "Surface Pressure (hPa)",
     "target_rain":           "Rain (mm)",
 }
+
+TARGET_LABELS = {
+    "target_temperature_2m": "Temperature 2m",
+    "target_dew_point_2m": "Dew Point 2m",
+    "target_relative_humidity_2m": "Relative Humidity 2m",
+    "target_pressure_msl": "Pressure MSL",
+    "target_surface_pressure": "Surface Pressure",
+    "target_rain": "Rain",
+}
+
+TARGET_UNITS = {
+    "target_temperature_2m": "°C",
+    "target_dew_point_2m": "°C",
+    "target_relative_humidity_2m": "%",
+    "target_pressure_msl": "hPa",
+    "target_surface_pressure": "hPa",
+    "target_rain": "mm",
+}
+
+TARGET_MODEL_LABELS = {
+    "target_temperature_2m": "LightGBM",
+    "target_dew_point_2m": "LightGBM",
+    "target_relative_humidity_2m": "LightGBM",
+    "target_pressure_msl": "LightGBM",
+    "target_surface_pressure": "LightGBM",
+    "target_rain": "XGBoost Tweedie",
+}
+
+LGBM_TARGETS = set(TARGETS) - {"target_rain"}
 
 
 def get_model(target: str):
@@ -45,7 +82,7 @@ def get_model(target: str):
                   and better suited for the bursty, sparse nature of hourly
                   precipitation vs the daily-total use case of power=1.5.
     """
-    if target == "target_temperature_2m":
+    if target in LGBM_TARGETS:
         return lgb.LGBMRegressor(
             n_estimators      = 600,
             learning_rate     = 0.05,

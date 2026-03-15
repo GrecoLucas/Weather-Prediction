@@ -5,33 +5,61 @@ Rows        : 39,312
 PER-TARGET METRICS
 ----------------------------------------------------
 Temperature 2m (°C):
-  MAE                : 1.828082
-  RMSE               : 2.340172
-  R2                 : 0.847316
-  Bias (pred-real)   : 0.528271
-  Corr (Pearson)     : 0.924955
+  MAE                : 1.837552
+  RMSE               : 2.345524
+  R2                 : 0.846617
+  Bias (pred-real)   : 0.547824
+  Corr (Pearson)     : 0.924873
+
+Dew Point 2m (°C):
+  MAE                : 2.482133
+  RMSE               : 3.084445
+  R2                 : 0.528378
+  Bias (pred-real)   : 0.577117
+  Corr (Pearson)     : 0.739394
+
+Relative Humidity 2m (%):
+  MAE                : 9.585744
+  RMSE               : 11.972115
+  R2                 : 0.618703
+  Bias (pred-real)   : -0.824314
+  Corr (Pearson)     : 0.787746
+
+Pressure MSL (hPa):
+  MAE                : 5.560932
+  RMSE               : 7.773132
+  R2                 : -0.684529
+  Bias (pred-real)   : -3.441710
+  Corr (Pearson)     : 0.030490
+
+Surface Pressure (hPa):
+  MAE                : 4.792353
+  RMSE               : 6.364178
+  R2                 : 0.960968
+  Bias (pred-real)   : -2.687783
+  Corr (Pearson)     : 0.983856
 
 Rain (mm):
-  MAE                : 0.129518
-  RMSE               : 0.516827
-  R2                 : 0.020280
-  Bias (pred-real)   : -0.085919
-  Corr (Pearson)     : 0.217839
+  MAE                : 0.126806
+  RMSE               : 0.517974
+  R2                 : 0.015925
+  Bias (pred-real)   : -0.091814
+  Corr (Pearson)     : 0.217070
 
 GLOBAL METRICS
 ----------------------------------------------------
-Global MAE                      : 0.978800
-Score (2 targets)             : 14.863434
-Score (competition-equivalent)  : 37.158586
+Global MAE                      : 4.064254
+Score (6 targets)             : 17.423159
+Score (competition-equivalent)  : 14.519299
 
 RAIN DIAGNOSTICS
 ----------------------------------------------------
 Actual non-zero rate            : 0.186661
-Pred non-zero rate              : 0.122075
-Pred mean when actual=0         : 0.021153
-Pred mean when actual>0         : 0.091253
+Pred non-zero rate              : 0.107448
+Pred mean when actual=0         : 0.016823
+Pred mean when actual>0         : 0.078535
 Max actual rain                 : 11.600000
-Max predicted rain              : 2.209131
+Max predicted rain              : 2.276331
 
 NOTES
 ----------------------------------------------------
