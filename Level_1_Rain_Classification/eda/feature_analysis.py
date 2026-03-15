@@ -93,7 +93,7 @@ if __name__ == "__main__":
     
     # Path to Dataset
     # Level_1_Rain_Classification/eda/script.py -> up 2 levels
-    dataset_path = os.path.abspath(os.path.join(script_dir, "..", "..", "metherology_dataset.csv"))
+    dataset_path = os.path.abspath(os.path.join(script_dir, "..", "..", "data/meteorology_dataset.csv"))
     
     # Ensure EDA folder exists
     os.makedirs(script_dir, exist_ok=True)

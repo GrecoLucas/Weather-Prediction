@@ -1,0 +1,44 @@
+METEOROLOGY FORECASTING - MAIN METRICS
+====================================================
+Rows        : 118,800
+Steps       : 40 (from 0 to 39)
+
+PER-TARGET METRICS
+----------------------------------------------------
+Temperature 2m (°C):
+  MAE                : 2.024357
+  RMSE               : 2.597580
+  R2                 : 0.878699
+  Bias (pred-real)   : 0.209090
+  Corr (Pearson)     : 0.938060
+  Step MAE mean/std  : 2.023553 / 0.412664
+  Step MAE min/max   : 1.371243 / 2.985002
+
+Rain (mm):
+  MAE                : 0.167208
+  RMSE               : 0.648689
+  R2                 : 0.024925
+  Bias (pred-real)   : -0.119581
+  Corr (Pearson)     : 0.246899
+  Step MAE mean/std  : 0.165874 / 0.219494
+  Step MAE min/max   : 0.000034 / 0.780253
+
+GLOBAL METRICS
+----------------------------------------------------
+Global MAE                      : 1.095783
+Score (2 targets)             : 14.033786
+Score (competition-equivalent)  : 35.084464
+
+RAIN DIAGNOSTICS
+----------------------------------------------------
+Actual non-zero rate            : 0.183081
+Pred non-zero rate              : 1.000000
+Pred mean when actual=0         : 0.022472
+Pred mean when actual>0         : 0.137171
+Max actual rain                 : 22.800000
+Max predicted rain              : 3.215168
+
+NOTES
+----------------------------------------------------
+- Bias > 0 means overestimation on average.
+- For rain, lower dry-hour prediction mean indicates fewer false drizzle events.
