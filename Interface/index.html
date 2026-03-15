@@ -1,0 +1,135 @@
+<!doctype html>
+<html lang="en">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+	<title>Weather Intelligence Studio</title>
+	<link rel="preconnect" href="https://fonts.googleapis.com">
+	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+	<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=DM+Serif+Display:ital@0;1&display=swap" rel="stylesheet">
+	<link rel="stylesheet" href="style.css">
+</head>
+<body>
+	<div class="bg-shape bg-shape-1" aria-hidden="true"></div>
+	<div class="bg-shape bg-shape-2" aria-hidden="true"></div>
+
+	<header class="topbar">
+		<div>
+			<p class="eyebrow">Meteorology ML Platform</p>
+			<h1>Weather Intelligence Studio</h1>
+			<p class="subtitle">Run classification experiments and present model performance with confidence.</p>
+		</div>
+		<div class="status-pill" id="status-pill">System ready</div>
+	</header>
+
+	<main class="layout">
+		<section class="card card-control">
+			<h2>Run Pipeline</h2>
+			<p class="card-intro">Connect your training script now. The UI is prepared for API integration and local report uploads.</p>
+
+			<form id="run-form" class="controls-grid">
+				<label>
+					Dataset Path
+					<input type="text" id="dataset-path" value="metherology_dataset.csv" placeholder="Path to CSV dataset">
+				</label>
+
+				<label>
+					Model Family
+					<select id="model-family">
+						<option value="all">All (RF + XGB + LGBM)</option>
+						<option value="lgbm">LightGBM only</option>
+						<option value="xgb">XGBoost only</option>
+						<option value="rf">RandomForest only</option>
+					</select>
+				</label>
+
+				<label>
+					Optimization Profile
+					<select id="profile">
+						<option value="balanced">Balanced F1</option>
+						<option value="recall">High Recall</option>
+						<option value="precision">High Precision</option>
+					</select>
+				</label>
+
+				<div class="control-actions">
+					<button type="submit" class="btn btn-primary" id="run-btn">Run Experiment</button>
+					<button type="button" class="btn btn-secondary" id="load-demo-btn">Load Demo Report</button>
+				</div>
+			</form>
+
+			<div class="upload-wrap">
+				<label for="metrics-upload" class="upload-label">or upload your model_metrics.txt</label>
+				<input id="metrics-upload" type="file" accept=".txt">
+			</div>
+
+		</section>
+
+		<section class="card card-kpis">
+			<h2>Executive Snapshot</h2>
+			<div class="kpi-grid" id="kpi-grid"></div>
+		</section>
+
+		<section class="card card-ranking">
+			<h2>Model Ranking</h2>
+			<div class="table-wrap">
+				<table>
+					<thead>
+						<tr>
+							<th>Rank</th>
+							<th>Model</th>
+							<th>Val F1</th>
+							<th>Test F1</th>
+							<th>Val Precision</th>
+							<th>Val Recall</th>
+						</tr>
+					</thead>
+					<tbody id="ranking-body"></tbody>
+				</table>
+			</div>
+		</section>
+
+		<section class="card card-chart">
+			<div class="section-head">
+				<h2>Performance Radar</h2>
+				<select id="metric-select" aria-label="Choose metric">
+					<option value="f1">F1</option>
+					<option value="precision">Precision</option>
+					<option value="recall">Recall</option>
+				</select>
+			</div>
+			<div id="bars" class="bars"></div>
+		</section>
+
+		<section class="card card-details">
+			<div class="section-head">
+				<h2>Model Deep Dive</h2>
+				<select id="model-select" aria-label="Choose model"></select>
+			</div>
+
+			<div class="split-grid" id="split-grid"></div>
+
+			<h3>Confusion Matrix (Validation)</h3>
+			<div class="matrix" id="confusion-matrix"></div>
+
+			<h3>Chosen Hyperparameters</h3>
+			<pre id="hyperparams" class="pre-box"></pre>
+		</section>
+
+		<section class="card card-log">
+			<h2>Run Log</h2>
+			<div id="run-log" class="log"></div>
+		</section>
+	</main>
+
+	<template id="kpi-template">
+		<article class="kpi-card">
+			<p class="kpi-label"></p>
+			<p class="kpi-value"></p>
+			<p class="kpi-extra"></p>
+		</article>
+	</template>
+
+	<script src="app.js"></script>
+</body>
+</html>
