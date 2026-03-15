@@ -93,8 +93,7 @@ function renderHourlyTable(prediction) {
 
   if (!prediction.hourly.length) {
     const colSpan = showObservedSnow ? 6 : 5;
-    hourlyBody.innerHTML =
-		`<tr><td colspan="${colSpan}">No snowfall hours predicted for this district.</td></tr>`;
+    hourlyBody.innerHTML = `<tr><td colspan="${colSpan}">No snowfall hours predicted for this district.</td></tr>`;
   }
 }
 
