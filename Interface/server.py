@@ -15,6 +15,10 @@ LEVEL2_DIR = os.path.join(ROOT_DIR, "level2")
 LEVEL2_SCRIPT = os.path.join(LEVEL2_DIR, "temperature_prediction.py")
 LEVEL3_DIR = os.path.join(ROOT_DIR, "Level_3_Unsupervised Snow Detection")
 LEVEL3_SCRIPT = os.path.join(LEVEL3_DIR, "snow_prediction.py")
+LEVEL4_DIR = os.path.join(ROOT_DIR, "Level_4")
+LEVEL4_SCRIPT = os.path.join(LEVEL4_DIR, "accident_prediction.py")
+LEVEL4_ACCIDENTS_PATH = os.path.join(ROOT_DIR, "data", "accidents_dataset.csv")
+LEVEL4_METEOROLOGY_PATH = os.path.join(ROOT_DIR, "data", "meteorology_dataset_with_snow_fall.csv")
 LEVEL5_DIR = os.path.join(ROOT_DIR, "Level_5_Meteorology_Forecasting")
 LEVEL5_MODULE_SCRIPT = os.path.join(LEVEL5_DIR, "meteorology_forecast.py")
 LEVEL5_PIPELINE_SCRIPT = os.path.join(LEVEL5_DIR, "run_pipeline.py")
@@ -72,6 +76,30 @@ level3_spec.loader.exec_module(snow_prediction_module)
 
 get_snowfall_prediction_options = snow_prediction_module.get_snowfall_prediction_options
 predict_snowfall_for_district = snow_prediction_module.predict_snowfall_for_district
+
+# ---------------------------------------------------------------------------
+# Level 4: Accident prediction module
+# ---------------------------------------------------------------------------
+level4_spec = importlib.util.spec_from_file_location("accident_prediction_module", LEVEL4_SCRIPT)
+accident_prediction_module = importlib.util.module_from_spec(level4_spec)
+assert level4_spec and level4_spec.loader
+level4_spec.loader.exec_module(accident_prediction_module)
+
+get_level4_options = accident_prediction_module.get_level4_options
+predict_accidents_for_day = accident_prediction_module.predict_accidents_for_day
+
+
+def _reload_level4_module():
+    global get_level4_options
+    global predict_accidents_for_day
+
+    module_spec = importlib.util.spec_from_file_location("accident_prediction_module", LEVEL4_SCRIPT)
+    module = importlib.util.module_from_spec(module_spec)
+    assert module_spec and module_spec.loader
+    module_spec.loader.exec_module(module)
+
+    get_level4_options = module.get_level4_options
+    predict_accidents_for_day = module.predict_accidents_for_day
 
 # ---------------------------------------------------------------------------
 # Level 5: Meteorology Forecasting module
@@ -134,6 +162,10 @@ class DashboardHandler(SimpleHTTPRequestHandler):
             self.handle_level5_options()
             return
 
+        if self.path == "/api/level4-options":
+            self.handle_level4_options()
+            return
+
         if self.path == "/api/level5-report":
             self.handle_level5_report()
             return
@@ -162,6 +194,10 @@ class DashboardHandler(SimpleHTTPRequestHandler):
 
         if self.path == "/api/predict-meteorology":
             self.handle_predict_meteorology()
+            return
+
+        if self.path == "/api/predict-accidents-day":
+            self.handle_predict_accidents_day()
             return
 
         if self.path == "/api/run-level5-pipeline":
@@ -455,6 +491,80 @@ class DashboardHandler(SimpleHTTPRequestHandler):
             prediction = predict_snowfall_for_district(
                 filepath=dataset_path,
                 location=location,
+            )
+        except Exception as exc:
+            self._send_json(500, {"error": str(exc)})
+            return
+
+        duration_ms = int((time.time() - start_time) * 1000)
+        self._send_json(200, {"ok": True, "prediction": prediction, "durationMs": duration_ms})
+
+    def handle_level4_options(self):
+        _reload_level4_module()
+        meteorology_path = self._resolve_dataset_path(LEVEL4_METEOROLOGY_PATH)
+        accidents_path = LEVEL4_ACCIDENTS_PATH
+
+        if not os.path.exists(meteorology_path):
+            self._send_json(400, {"error": f"Meteorology dataset not found: {meteorology_path}"})
+            return
+
+        if not os.path.exists(accidents_path):
+            self._send_json(400, {"error": f"Accidents dataset not found: {accidents_path}"})
+            return
+
+        try:
+            options = get_level4_options(meteorology_path, accidents_path)
+        except Exception as exc:
+            self._send_json(500, {"error": str(exc)})
+            return
+
+        self._send_json(
+            200,
+            {
+                "ok": True,
+                **options,
+                "datasetPath": meteorology_path,
+                "accidentsPath": accidents_path,
+            },
+        )
+
+    def handle_predict_accidents_day(self):
+        _reload_level4_module()
+        content_length = int(self.headers.get("Content-Length", "0"))
+        body = self.rfile.read(content_length) if content_length > 0 else b"{}"
+
+        try:
+            payload = json.loads(body.decode("utf-8"))
+        except json.JSONDecodeError:
+            self._send_json(400, {"error": "Invalid JSON body."})
+            return
+
+        meteorology_path = self._resolve_dataset_path(payload.get("datasetPath") or LEVEL4_METEOROLOGY_PATH)
+        accidents_path = self._resolve_dataset_path(payload.get("accidentsPath") or LEVEL4_ACCIDENTS_PATH)
+        selected_date = str(payload.get("selectedDate") or "").strip()
+        location = str(payload.get("location") or "").strip()
+        under_penalty = payload.get("underPenalty", 0.6)
+
+        if not selected_date:
+            self._send_json(400, {"error": "selectedDate is required."})
+            return
+
+        if not os.path.exists(meteorology_path):
+            self._send_json(400, {"error": f"Meteorology dataset not found: {meteorology_path}"})
+            return
+
+        if not os.path.exists(accidents_path):
+            self._send_json(400, {"error": f"Accidents dataset not found: {accidents_path}"})
+            return
+
+        start_time = time.time()
+        try:
+            prediction = predict_accidents_for_day(
+                meteorology_path=meteorology_path,
+                accidents_path=accidents_path,
+                selected_date=selected_date,
+                location=location or None,
+                under_penalty=under_penalty,
             )
         except Exception as exc:
             self._send_json(500, {"error": str(exc)})

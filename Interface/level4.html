@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Weather Intelligence Studio - Level 3</title>
+    <title>Weather Intelligence Studio - Level 4</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
@@ -21,14 +21,14 @@
         <p class="eyebrow">Meteorology ML Platform</p>
         <h1>Weather Intelligence Studio</h1>
         <p class="subtitle">
-          Predict snowfall hours for a selected district across the dataset
-          using the best Level 3 anomaly model.
+          Compare accident prediction setups for a selected day, including
+          with-uplift vs no-uplift Vehicle Error behavior.
         </p>
         <div class="level-nav">
           <a class="level-link" href="index.html">Level 1: Rain</a>
           <a class="level-link" href="level2.html">Level 2: Temperature</a>
-          <a class="level-link active" href="level3.html">Level 3: Snowfall</a>
-          <a class="level-link" href="level4.html">Level 4: Accidents</a>
+          <a class="level-link" href="level3.html">Level 3: Snowfall</a>
+          <a class="level-link active" href="level4.html">Level 4: Accidents</a>
           <a class="level-link" href="level5.html">Level 5: Forecasting</a>
         </div>
       </div>
@@ -37,37 +37,45 @@
 
     <main class="layout">
       <section class="card card-control">
-        <h2>Level 3 Snowfall Prediction</h2>
+        <h2>Level 4 Prediction</h2>
         <p class="card-intro">
-          Choose a district and predict which dataset hours are likely snowfall
-          hours.
+          The model trains on dates before the selected day and predicts accident
+          counts for the selected day.
         </p>
 
-        <form id="level3-form" class="controls-grid">
+        <form id="level4-form" class="controls-grid">
           <label>
-            Dataset Path
+            Meteorology Dataset Path
             <input
               type="text"
               id="dataset-path"
-              value="data/meteorology_dataset.csv"
-              placeholder="Path to CSV dataset"
+              value="data/meteorology_dataset_with_snow_fall.csv"
+              placeholder="Path to meteorology CSV"
             />
           </label>
 
           <label>
-            District (Location)
-            <select id="location-select"></select>
+            Date
+            <input type="date" id="selected-date" />
+          </label>
+
+          <label>
+            Location (optional)
+            <select id="location-select">
+              <option value="">All locations</option>
+            </select>
+          </label>
+
+          <label>
+            Underestimation Quantile (0-1)
+            <input type="number" id="under-penalty" min="0.01" max="0.99" step="0.01" value="0.60" />
           </label>
 
           <div class="control-actions">
             <button type="submit" class="btn btn-primary" id="predict-btn">
-              Predict Snowfall Hours
+              Predict Accidents
             </button>
-            <button
-              type="button"
-              class="btn btn-secondary"
-              id="refresh-options-btn"
-            >
+            <button type="button" class="btn btn-secondary" id="refresh-options-btn">
               Refresh Options
             </button>
           </div>
@@ -77,35 +85,33 @@
       </section>
 
       <section class="card card-kpis">
-        <h2>Snowfall Snapshot</h2>
+        <h2>Objective Snapshot (Vehicle Allocation)</h2>
         <div class="kpi-grid" id="kpi-grid"></div>
       </section>
 
       <section class="card card-ranking">
-        <h2>Predicted Snowfall Hours</h2>
+        <h2>Selected Day Predictions</h2>
         <div class="table-wrap">
           <table>
             <thead>
               <tr>
-                <th>Time</th>
-                <th>Temp (°C)</th>
-                <th>Humidity (%)</th>
-                <th>Rain (mm)</th>
-                <th id="observed-snow-header">Observed Snow</th>
+                <th>Location</th>
+                <th>Actual Accidents</th>
+                <th>Global (No Uplift)</th>
+                <th>Global (With Uplift)</th>
+                <th>Regional (No Uplift)</th>
+                <th>Regional (With Uplift)</th>
               </tr>
             </thead>
-            <tbody id="hourly-body"></tbody>
+            <tbody id="rows-body"></tbody>
           </table>
         </div>
       </section>
 
       <section class="card card-chart">
         <div class="section-head">
-          <h2>Monthly Snowfall Counts</h2>
-          <p class="hint">
-            Predicted snowfall-hour distribution by month for the selected
-            district.
-          </p>
+          <h2>Vehicle Error by Setup</h2>
+          <p class="hint">Compare total Vehicle Error across the four setups.</p>
         </div>
         <div id="bars" class="bars"></div>
       </section>
@@ -113,18 +119,13 @@
       <section class="card card-details">
         <div class="section-head">
           <h2>Run Details</h2>
-          <div class="result-chip" id="prediction-chip">
-            Awaiting prediction
-          </div>
+          <div class="result-chip" id="prediction-chip">Awaiting prediction</div>
         </div>
 
         <div class="split-grid" id="split-grid"></div>
 
-        <h3>Prediction Notes</h3>
-        <div class="pre-box" id="prediction-notes"></div>
-
-        <h3>Chosen Parameters</h3>
-        <pre id="hyperparams" class="pre-box"></pre>
+        <h3>Uplift Impact Summary</h3>
+        <div class="pre-box" id="impact-summary"></div>
       </section>
 
       <section class="card card-log">
@@ -141,6 +142,6 @@
       </article>
     </template>
 
-    <script src="level3.js?v=20260315"></script>
+    <script src="level4.js?v=20260315a"></script>
   </body>
 </html>
