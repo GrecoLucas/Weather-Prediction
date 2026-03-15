@@ -8,7 +8,7 @@ Convenience script: runs the full forecasting pipeline end-to-end.
 Steps:
   1. 01_preprocess.py          → data/processed.parquet
   2. 02_feature_engineering.py → data/features.parquet
-  3. 03_walk_forward.py        → results/walk_forward_results.csv
+    3. 03_weekly_block_validation.py → results/validation_results.csv
   4. 05_evaluate.py            → results/plots/ + score printed
 """
 
@@ -21,7 +21,7 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 SCRIPTS = [
     "01_preprocess.py",
     "02_feature_engineering.py",
-    "03_walk_forward.py",
+    "03_weekly_block_validation.py",
     "05_evaluate.py",
 ]
 

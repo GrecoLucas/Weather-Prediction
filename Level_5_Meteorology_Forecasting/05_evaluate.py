@@ -1,10 +1,9 @@
 """
 05_evaluate.py
 --------------
-Load walk-forward results and produce:
+Load validation results and produce:
   1. Per-variable MAE summary + competition score
   2. Actual vs Predicted time-series plots for each target
-  3. MAE-over-steps plot (convergence check)
 
 All plots saved to results/plots/.
 
@@ -22,7 +21,7 @@ from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
 # Paths
 # ---------------------------------------------------------------------------
 BASE_DIR    = os.path.dirname(os.path.abspath(__file__))
-RESULTS_CSV = os.path.join(BASE_DIR, "results", "walk_forward_results.csv")
+RESULTS_CSV = os.path.join(BASE_DIR, "results", "validation_results.csv")
 PLOTS_DIR   = os.path.join(BASE_DIR, "results", "plots")
 REPORT_TXT  = os.path.join(BASE_DIR, "results", "main_metrics_report.txt")
 
@@ -83,17 +82,8 @@ for target in TARGETS:
     bias   = float(np.mean(pred - actual))
     corr   = float(np.corrcoef(actual, pred)[0, 1])
 
-    step_mae = df.groupby("step").apply(
-        lambda g: mean_absolute_error(g[f"actual_{target}"], g[f"pred_{target}"]),
-        include_groups=False,
-    )
-
     metrics_dict[target] = {
         "mae": mae, "rmse": rmse, "r2": r2, "bias": bias, "corr": corr,
-        "step_mae_mean": float(step_mae.mean()),
-        "step_mae_std":  float(step_mae.std()),
-        "step_mae_min":  float(step_mae.min()),
-        "step_mae_max":  float(step_mae.max()),
     }
 
     print(f"  {TARGET_LABELS[target]:<35} MAE = {mae:.4f}")
@@ -142,40 +132,7 @@ for target in TARGETS:
     print(f"  Saved: {out_path}")
 
 # ---------------------------------------------------------------------------
-# 4. MAE evolution across walk-forward steps (convergence check)
-# ---------------------------------------------------------------------------
-print("\nGenerating MAE-over-steps plot …")
-
-fig, axes = plt.subplots(len(TARGETS), 1, figsize=(14, 3 * len(TARGETS)), sharex=True)
-axes = np.atleast_1d(axes)
-
-for ax, target in zip(axes, TARGETS):
-    label = TARGET_LABELS[target]
-    c_act, _ = COLORS[target]
-
-    grp = df.groupby("step").apply(
-        lambda g: mean_absolute_error(g[f"actual_{target}"], g[f"pred_{target}"]),
-        include_groups=False,
-    ).reset_index(name="mae")
-
-    ax.plot(grp["step"], grp["mae"], color=c_act, lw=1.5, marker="o", markersize=3)
-    avg = grp["mae"].mean()
-    ax.axhline(avg, color="white", lw=0.8, linestyle=":", alpha=0.6, label=f"Avg {avg:.3f}")
-    ax.set_ylabel(label.split("(")[0].strip(), fontsize=9)
-    ax.legend(fontsize=8, loc="upper right")
-    ax.grid(True)
-
-axes[-1].set_xlabel("Walk-Forward Step")
-fig.suptitle("MAE Evolution Across Walk-Forward Steps", fontsize=13, y=1.01)
-
-plt.tight_layout()
-out_path = os.path.join(PLOTS_DIR, "mae_evolution.png")
-plt.savefig(out_path, dpi=120, bbox_inches="tight")
-plt.close()
-print(f"  Saved: {out_path}")
-
-# ---------------------------------------------------------------------------
-# 5. Score summary banner
+# 4. Score summary banner
 # ---------------------------------------------------------------------------
 print("\n" + "=" * 55)
 print(f"  FINAL SCORE : {score:.4f}")
@@ -184,7 +141,7 @@ print("=" * 55)
 print("\nAll plots saved to:", PLOTS_DIR)
 
 # ---------------------------------------------------------------------------
-# 6. Write comprehensive txt report
+# 5. Write comprehensive txt report
 # ---------------------------------------------------------------------------
 rain_actual   = df["actual_target_rain"].to_numpy()
 rain_pred     = df["pred_target_rain"].to_numpy()
@@ -194,7 +151,6 @@ lines = []
 lines.append("METEOROLOGY FORECASTING - MAIN METRICS")
 lines.append("=" * 52)
 lines.append(f"Rows        : {len(df):,}")
-lines.append(f"Steps       : {df['step'].nunique()} (from {df['step'].min()} to {df['step'].max()})")
 lines.append("")
 
 lines.append("PER-TARGET METRICS")
@@ -207,8 +163,6 @@ for target in TARGETS:
     lines.append(f"  R2                 : {m['r2']:.6f}")
     lines.append(f"  Bias (pred-real)   : {m['bias']:.6f}")
     lines.append(f"  Corr (Pearson)     : {m['corr']:.6f}")
-    lines.append(f"  Step MAE mean/std  : {m['step_mae_mean']:.6f} / {m['step_mae_std']:.6f}")
-    lines.append(f"  Step MAE min/max   : {m['step_mae_min']:.6f} / {m['step_mae_max']:.6f}")
     lines.append("")
 
 lines.append("GLOBAL METRICS")
@@ -232,7 +186,7 @@ lines.append("NOTES")
 lines.append("-" * 52)
 lines.append("- Bias > 0 means overestimation on average.")
 lines.append("- For rain, lower dry-hour prediction mean indicates fewer false drizzle events.")
-lines.append("- Initial train window: 6 months (covers wet + dry season before first validation).")
+lines.append("- Weekly blocked validation uses a 1-week gap to reduce leakage from adjacent weeks.")
 lines.append("- Rain rolling features use .sum() (total accumulation, not mean).")
 
 with open(REPORT_TXT, "w", encoding="utf-8") as f:

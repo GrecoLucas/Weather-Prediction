@@ -1,7 +1,7 @@
 """
-03_walk_forward.py
-------------------
-Walk-Forward com Blocos Semanais Aleatórios.
+03_weekly_block_validation.py
+-----------------------------
+Weekly-block validation with temporal gap.
 
 PROBLEMA DO MÉTODO ANTERIOR:
   A janela inicial de 3 meses começa em Março (transição primavera-verão).
@@ -25,7 +25,7 @@ RESULTADO vs método anterior (Lisboa, HGB):
   Blocos aleatórios    : temp MAE=1.763, rain MAE=0.213
   Melhoria             : +10.6% temp, +7.5% rain
 
-Run: python 03_walk_forward.py
+Run: python 03_weekly_block_validation.py
 """
 
 import os
@@ -41,7 +41,7 @@ from models_04 import get_model, TARGETS, TARGET_SHORT
 BASE_DIR    = os.path.dirname(os.path.abspath(__file__))
 IN_FILE     = os.path.join(BASE_DIR, "data", "features.parquet")
 OUT_DIR     = os.path.join(BASE_DIR, "results")
-OUT_RESULTS = os.path.join(OUT_DIR, "walk_forward_results.csv")
+OUT_RESULTS = os.path.join(OUT_DIR, "validation_results.csv")
 
 os.makedirs(OUT_DIR, exist_ok=True)
 

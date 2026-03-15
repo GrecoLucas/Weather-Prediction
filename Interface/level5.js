@@ -8,8 +8,6 @@ const refreshOptionsBtn= document.getElementById("refresh-options-btn");
 const datasetRange     = document.getElementById("dataset-range");
 const kpiGrid          = document.getElementById("kpi-grid");
 const predictionsBody  = document.getElementById("predictions-body");
-const targetTabs       = document.getElementById("target-tabs");
-const bars             = document.getElementById("bars");
 const splitGrid        = document.getElementById("split-grid");
 const scoreFormula     = document.getElementById("score-formula");
 const metricsReport    = document.getElementById("metrics-report");
@@ -19,8 +17,6 @@ const kpiTemplate      = document.getElementById("kpi-template");
 
 // State
 let cachedReport   = null;   // from /api/level5-report
-let stepMAEData    = {};     // { target: [{step, mae}] }
-let activeTarget   = null;   // for tab-based chart switching
 
 // ─── Logging ──────────────────────────────────────────────────────────────
 function log(message, type = "info") {
@@ -102,64 +98,6 @@ function renderPredictionsTable(prediction) {
   if (!prediction.predictions.length) {
     predictionsBody.innerHTML = `<tr><td colspan="5">No predictions available.</td></tr>`;
   }
-}
-
-// ─── Step-MAE bar chart ───────────────────────────────────────────────────
-function renderTargetTabs(keys) {
-  targetTabs.innerHTML = "";
-  for (const key of keys) {
-    const btn = document.createElement("button");
-    btn.className = "tab-btn" + (key === activeTarget ? " active" : "");
-    btn.type = "button";
-    btn.dataset.target = key;
-    // Pretty label
-    const label = key.replace("target_", "").replaceAll("_", " ");
-    btn.textContent = label.charAt(0).toUpperCase() + label.slice(1);
-    btn.addEventListener("click", () => {
-      activeTarget = key;
-      renderTargetTabs(keys);
-      renderStepBars(stepMAEData[key] || []);
-    });
-    targetTabs.appendChild(btn);
-  }
-}
-
-function renderStepBars(stepRows) {
-  bars.innerHTML = "";
-
-  if (!Array.isArray(stepRows) || !stepRows.length) {
-    bars.innerHTML = '<p class="hint">No step-level MAE data available. Run the pipeline first.</p>';
-    return;
-  }
-
-  const maxMAE = Math.max(...stepRows.map((r) => Number(r.mae || 0)), 0.001);
-
-  for (const row of stepRows) {
-    const width = Math.max(2, (Number(row.mae) / maxMAE) * 100);
-    const dateLabel = row.date ? `<span class="bar-date">· ${row.date}</span>` : "";
-    const bar   = document.createElement("div");
-    bar.className = "bar-row";
-    bar.innerHTML = `
-      <span class="bar-label">Step ${row.step} ${dateLabel}</span>
-      <div class="bar-track"><div class="bar-fill" style="width:${width}%; background:var(--primary)"></div></div>
-      <strong>${fmt(row.mae, 4)}</strong>
-    `;
-    bars.appendChild(bar);
-  }
-}
-
-function renderStepChart(stepMAE) {
-  stepMAEData = stepMAE || {};
-  const keys = Object.keys(stepMAEData);
-  if (!keys.length) {
-    bars.innerHTML = '<p class="hint">No step-level MAE data available.</p>';
-    return;
-  }
-  if (!activeTarget || !stepMAEData[activeTarget]) {
-    activeTarget = keys[0];
-  }
-  renderTargetTabs(keys);
-  renderStepBars(stepMAEData[activeTarget]);
 }
 
 // ─── Details card ─────────────────────────────────────────────────────────
@@ -270,12 +208,7 @@ async function loadReport() {
     // Render KPIs from cached metrics (before any prediction)
     renderKPIs({});
 
-    // Step chart
-    if (payload.stepMAE) {
-      renderStepChart(payload.stepMAE);
-    }
-
-    log("Loaded pre-computed walk-forward metrics.");
+    log("Loaded pre-computed validation metrics.");
   } catch {
     // Non-fatal: report just won't show until pipeline is run
   }

@@ -1,7 +1,6 @@
 METEOROLOGY FORECASTING - MAIN METRICS
 ====================================================
 Rows        : 39,312
-Steps       : 1 (from 0 to 0)
 
 PER-TARGET METRICS
 ----------------------------------------------------
@@ -11,8 +10,6 @@ Temperature 2m (°C):
   R2                 : 0.847316
   Bias (pred-real)   : 0.528271
   Corr (Pearson)     : 0.924955
-  Step MAE mean/std  : 1.828082 / nan
-  Step MAE min/max   : 1.828082 / 1.828082
 
 Rain (mm):
   MAE                : 0.129518
@@ -20,8 +17,6 @@ Rain (mm):
   R2                 : 0.020280
   Bias (pred-real)   : -0.085919
   Corr (Pearson)     : 0.217839
-  Step MAE mean/std  : 0.129518 / nan
-  Step MAE min/max   : 0.129518 / 0.129518
 
 GLOBAL METRICS
 ----------------------------------------------------
@@ -42,5 +37,5 @@ NOTES
 ----------------------------------------------------
 - Bias > 0 means overestimation on average.
 - For rain, lower dry-hour prediction mean indicates fewer false drizzle events.
-- Initial train window: 6 months (covers wet + dry season before first validation).
+- Weekly blocked validation uses a 1-week gap to reduce leakage from adjacent weeks.
 - Rain rolling features use .sum() (total accumulation, not mean).

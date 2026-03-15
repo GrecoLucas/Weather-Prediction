@@ -28,7 +28,7 @@ DATA_DIR    = os.path.join(BASE_DIR, "data")
 RESULTS_DIR = os.path.join(BASE_DIR, "results")
 CACHE_DIR   = os.path.join(BASE_DIR, "models_cache")
 REPORT_TXT  = os.path.join(RESULTS_DIR, "main_metrics_report.txt")
-RESULTS_CSV = os.path.join(RESULTS_DIR, "walk_forward_results.csv")
+RESULTS_CSV = os.path.join(RESULTS_DIR, "validation_results.csv")
 FEATURES_PARQUET = os.path.join(DATA_DIR, "features.parquet")
 
 os.makedirs(CACHE_DIR, exist_ok=True)
@@ -101,7 +101,7 @@ def get_meteorology_options(dataset_path: str) -> dict:
 
 
 # ---------------------------------------------------------------------------
-# Cached metrics (from walk-forward evaluation report)
+# Cached metrics (from validation report)
 # ---------------------------------------------------------------------------
 
 def get_cached_metrics() -> dict:
@@ -140,32 +140,6 @@ def get_cached_metrics() -> dict:
                 result["nTargets"]   = len(TARGETS)
                 result["totalLabels"] = 17
 
-            # Step-level MAE for the bar chart (per target per step)
-            # Also compute the week-start date for each step so the UI can label them.
-            step_dates = {}
-            if "time" in df.columns:
-                df["time"] = pd.to_datetime(df["time"])
-                step_dates = (
-                    df.groupby("step")["time"].min()
-                    .dt.strftime("%d %b")
-                    .to_dict()
-                )
-
-            step_data = {}
-            for t in TARGETS:
-                actual_col = f"actual_{t}"
-                pred_col   = f"pred_{t}"
-                if actual_col in df.columns and pred_col in df.columns:
-                    from sklearn.metrics import mean_absolute_error as mae_fn
-                    grp = df.groupby("step").apply(
-                        lambda g, ac=actual_col, pc=pred_col: float(mae_fn(g[ac], g[pc])),
-                        include_groups=False,
-                    ).reset_index(name="mae")
-                    grp["date"] = grp["step"].map(step_dates)
-                    step_data[t] = grp.to_dict(orient="records")
-            result["stepMAE"] = step_data
-
-
         except Exception as exc:
             result["csvError"] = str(exc)
 
@@ -182,12 +156,33 @@ def _load_or_train(target: str, X_train: pd.DataFrame, y_train: pd.Series) -> tu
     If a cached .pkl exists → load it; otherwise train and save.
     """
     cache_path = CACHE_FILES[target]
+    feature_cols = list(X_train.columns)
+
+    def is_cache_compatible(model) -> bool:
+        expected_n_features = len(feature_cols)
+        cached_n_features = getattr(model, "n_features_in_", None)
+        if cached_n_features is not None and int(cached_n_features) != expected_n_features:
+            return False
+
+        cached_feature_names = getattr(model, "feature_names_in_", None)
+        if cached_feature_names is not None:
+            return list(cached_feature_names) == feature_cols
+
+        booster = getattr(model, "get_booster", lambda: None)()
+        if booster is not None:
+            booster_feature_names = getattr(booster, "feature_names", None)
+            if booster_feature_names:
+                return list(booster_feature_names) == feature_cols
+
+        return True
 
     if os.path.exists(cache_path):
         try:
             with open(cache_path, "rb") as f:
                 model = pickle.load(f)
-            return model, True
+            if is_cache_compatible(model):
+                return model, True
+            os.remove(cache_path)
         except Exception:
             pass  # corrupt cache → retrain
 
@@ -308,7 +303,7 @@ def predict_meteorology_for_location(
         })
 
     # -----------------------------------------------------------------------
-    # 6. Competition score (based on cached walk-forward MAE if available)
+    # 6. Competition score (based on cached validation MAE if available)
     # -----------------------------------------------------------------------
     metrics = get_cached_metrics()
     global_mae = metrics.get("globalMAE")

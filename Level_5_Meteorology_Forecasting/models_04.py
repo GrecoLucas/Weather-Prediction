@@ -3,7 +3,7 @@ models_04.py
 ------------
 Model factory: returns a fast, lightweight model per target.
 
-Imported by 03_walk_forward.py — not meant to be run directly.
+Imported by 03_weekly_block_validation.py — not meant to be run directly.
 
 Changes vs previous version:
   Temperature : unchanged — LightGBM with num_leaves=63 remains optimal.

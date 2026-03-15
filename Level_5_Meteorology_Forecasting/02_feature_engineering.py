@@ -129,5 +129,10 @@ if __name__ == "__main__":
     for c in features_df.columns:
         print(f"  {c}")
 
-    features_df.to_parquet(OUT_FILE, index=False)
+    tmp_out_file = OUT_FILE + ".tmp"
+    if os.path.exists(tmp_out_file):
+        os.remove(tmp_out_file)
+
+    features_df.to_parquet(tmp_out_file, index=False)
+    os.replace(tmp_out_file, OUT_FILE)
     print(f"\nSaved → {OUT_FILE}")

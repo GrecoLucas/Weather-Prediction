@@ -22,7 +22,7 @@
         <h1>Weather Intelligence Studio</h1>
         <p class="subtitle">
           Forecast next-day meteorological variables for a chosen location using
-          trained LightGBM &amp; XGBoost models with walk-forward validation.
+          trained LightGBM &amp; XGBoost models with weekly blocked validation.
         </p>
         <div class="level-nav">
           <a class="level-link" href="index.html">Level 1: Rain</a>
@@ -96,24 +96,12 @@
                 <th>Predicted Value</th>
                 <th>Actual Value</th>
                 <th>Unit</th>
-                <th>Walk-Forward MAE</th>
+                <th>Validation MAE</th>
               </tr>
             </thead>
             <tbody id="predictions-body"></tbody>
           </table>
         </div>
-      </section>
-
-      <!-- ── Step MAE Chart ─────────────────────────────────────────────── -->
-      <section class="card card-chart">
-        <div class="section-head">
-          <h2>Walk-Forward MAE by Step</h2>
-          <p class="hint">
-            Historical Mean Absolute Error per walk-forward step for each target variable.
-          </p>
-        </div>
-        <div id="target-tabs" class="target-tabs"></div>
-        <div id="bars" class="bars"></div>
       </section>
 
       <!-- ── Details ───────────────────────────────────────────────────── -->
