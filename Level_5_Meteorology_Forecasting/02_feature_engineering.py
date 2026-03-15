@@ -26,7 +26,6 @@ OUT_FILE  = os.path.join(BASE_DIR, "data", "features.parquet")
 
 # ---------------------------------------------------------------------------
 # Target raw column names → engineered target column names
-# Fast mode: predict only 2 targets to reduce training cost.
 # ---------------------------------------------------------------------------
 RAW_TO_TARGET = {
     "temperature_2m"  : "target_temperature_2m",
