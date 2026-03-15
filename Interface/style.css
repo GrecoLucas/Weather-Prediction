@@ -325,9 +325,20 @@ tr.highlight {
 
 .bar-row {
 	display: grid;
-	grid-template-columns: 110px 1fr 60px;
+	grid-template-columns: 150px 1fr 60px;
 	align-items: center;
 	gap: 0.6rem;
+}
+
+.bar-label {
+	font-size: 0.86rem;
+	white-space: nowrap;
+}
+
+.bar-date {
+	color: var(--muted);
+	font-weight: 400;
+	font-size: 0.82rem;
 }
 
 .bar-track {
@@ -451,6 +462,41 @@ tr.highlight {
 .log-time {
 	color: var(--muted);
 	margin-right: 0.35rem;
+}
+
+.btn-danger {
+	background: var(--danger);
+	color: #fff;
+}
+
+.btn-danger:disabled {
+	opacity: 0.5;
+	cursor: not-allowed;
+}
+
+.target-tabs {
+	display: flex;
+	gap: 0.5rem;
+	flex-wrap: wrap;
+	margin-top: 0.75rem;
+}
+
+.tab-btn {
+	padding: 0.35rem 0.85rem;
+	border-radius: 999px;
+	border: 1px solid var(--line);
+	background: #fff;
+	color: var(--text);
+	font-size: 0.84rem;
+	font-weight: 600;
+	cursor: pointer;
+	transition: background 160ms ease, color 160ms ease;
+}
+
+.tab-btn.active {
+	background: var(--primary);
+	color: #fff;
+	border-color: transparent;
 }
 
 @keyframes rise {

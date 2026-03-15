@@ -15,6 +15,10 @@ LEVEL2_DIR = os.path.join(ROOT_DIR, "level2")
 LEVEL2_SCRIPT = os.path.join(LEVEL2_DIR, "temperature_prediction.py")
 LEVEL3_DIR = os.path.join(ROOT_DIR, "Level_3_Unsupervised Snow Detection")
 LEVEL3_SCRIPT = os.path.join(LEVEL3_DIR, "snow_prediction.py")
+LEVEL5_DIR = os.path.join(ROOT_DIR, "Level_5_Meteorology_Forecasting")
+LEVEL5_MODULE_SCRIPT = os.path.join(LEVEL5_DIR, "meteorology_forecast.py")
+LEVEL5_PIPELINE_SCRIPT = os.path.join(LEVEL5_DIR, "run_pipeline.py")
+LEVEL5_REPORT = os.path.join(LEVEL5_DIR, "results", "main_metrics_report.txt")
 
 model_spec = importlib.util.spec_from_file_location("rain_prediction_module", MODEL_SCRIPT)
 rain_prediction_module = importlib.util.module_from_spec(model_spec)
@@ -69,6 +73,33 @@ level3_spec.loader.exec_module(snow_prediction_module)
 get_snowfall_prediction_options = snow_prediction_module.get_snowfall_prediction_options
 predict_snowfall_for_district = snow_prediction_module.predict_snowfall_for_district
 
+# ---------------------------------------------------------------------------
+# Level 5: Meteorology Forecasting module
+# ---------------------------------------------------------------------------
+level5_spec = importlib.util.spec_from_file_location("meteorology_forecast_module", LEVEL5_MODULE_SCRIPT)
+meteorology_forecast_module = importlib.util.module_from_spec(level5_spec)
+assert level5_spec and level5_spec.loader
+level5_spec.loader.exec_module(meteorology_forecast_module)
+
+get_meteorology_options = meteorology_forecast_module.get_meteorology_options
+get_cached_metrics = meteorology_forecast_module.get_cached_metrics
+predict_meteorology_for_location = meteorology_forecast_module.predict_meteorology_for_location
+
+
+def _reload_level5_module():
+    global get_meteorology_options
+    global get_cached_metrics
+    global predict_meteorology_for_location
+
+    spec = importlib.util.spec_from_file_location("meteorology_forecast_module", LEVEL5_MODULE_SCRIPT)
+    module = importlib.util.module_from_spec(spec)
+    assert spec and spec.loader
+    spec.loader.exec_module(module)
+
+    get_meteorology_options = module.get_meteorology_options
+    get_cached_metrics = module.get_cached_metrics
+    predict_meteorology_for_location = module.predict_meteorology_for_location
+
 
 class DashboardHandler(SimpleHTTPRequestHandler):
     def __init__(self, *args, **kwargs):
@@ -99,6 +130,14 @@ class DashboardHandler(SimpleHTTPRequestHandler):
             self.handle_level3_options()
             return
 
+        if self.path == "/api/level5-options":
+            self.handle_level5_options()
+            return
+
+        if self.path == "/api/level5-report":
+            self.handle_level5_report()
+            return
+
         if self.path in ["/", "/index.html"]:
             self.path = "/index.html"
 
@@ -119,6 +158,14 @@ class DashboardHandler(SimpleHTTPRequestHandler):
 
         if self.path == "/api/predict-snowfall-district":
             self.handle_predict_snowfall_district()
+            return
+
+        if self.path == "/api/predict-meteorology":
+            self.handle_predict_meteorology()
+            return
+
+        if self.path == "/api/run-level5-pipeline":
+            self.handle_run_level5_pipeline()
             return
 
         self._send_json(404, {"error": "Not found"})
@@ -415,6 +462,108 @@ class DashboardHandler(SimpleHTTPRequestHandler):
 
         duration_ms = int((time.time() - start_time) * 1000)
         self._send_json(200, {"ok": True, "prediction": prediction, "durationMs": duration_ms})
+
+
+    def handle_level5_options(self):
+        _reload_level5_module()
+        dataset_path = self._resolve_dataset_path(os.path.join(ROOT_DIR, "data/meteorology_dataset.csv"))
+        if not os.path.exists(dataset_path):
+            self._send_json(400, {"error": f"Dataset not found: {dataset_path}"})
+            return
+
+        try:
+            options = get_meteorology_options(dataset_path)
+        except Exception as exc:
+            self._send_json(500, {"error": str(exc)})
+            return
+
+        self._send_json(200, {"ok": True, **options, "datasetPath": dataset_path})
+
+    def handle_level5_report(self):
+        try:
+            metrics = get_cached_metrics()
+        except Exception as exc:
+            self._send_json(500, {"error": str(exc)})
+            return
+
+        self._send_json(200, {"ok": True, **metrics})
+
+    def handle_predict_meteorology(self):
+        _reload_level5_module()
+        content_length = int(self.headers.get("Content-Length", "0"))
+        body = self.rfile.read(content_length) if content_length > 0 else b"{}"
+
+        try:
+            payload = json.loads(body.decode("utf-8"))
+        except json.JSONDecodeError:
+            self._send_json(400, {"error": "Invalid JSON body."})
+            return
+
+        dataset_path = self._resolve_dataset_path(payload.get("datasetPath"))
+        location    = str(payload.get("location") or "").strip()
+        target_date = str(payload.get("targetDate") or "").strip()
+
+        if not location:
+            self._send_json(400, {"error": "location is required."})
+            return
+
+        if not target_date:
+            self._send_json(400, {"error": "targetDate is required."})
+            return
+
+        if not os.path.exists(dataset_path):
+            self._send_json(400, {"error": f"Dataset not found: {dataset_path}"})
+            return
+
+        try:
+            prediction = predict_meteorology_for_location(
+                dataset_path=dataset_path,
+                location=location,
+                target_date=target_date,
+            )
+        except Exception as exc:
+            self._send_json(500, {"error": str(exc)})
+            return
+
+        self._send_json(200, {"ok": True, "prediction": prediction})
+
+    def handle_run_level5_pipeline(self):
+        start_time = time.time()
+        try:
+            result = subprocess.run(
+                [sys.executable, LEVEL5_PIPELINE_SCRIPT],
+                cwd=LEVEL5_DIR,
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+        except Exception as exc:
+            self._send_json(500, {"error": str(exc)})
+            return
+
+        duration_ms = int((time.time() - start_time) * 1000)
+
+        if result.returncode != 0:
+            self._send_json(500, {
+                "error": "Pipeline run failed.",
+                "stdout": result.stdout,
+                "stderr": result.stderr,
+                "durationMs": duration_ms,
+            })
+            return
+
+        # Clear model cache so next prediction uses freshly trained models
+        import glob, os as _os
+        cache_dir = os.path.join(LEVEL5_DIR, "models_cache")
+        for pkl in glob.glob(os.path.join(cache_dir, "*.pkl")):
+            _os.remove(pkl)
+
+        self._send_json(200, {
+            "ok": True,
+            "message": "Pipeline completed. Model cache cleared – next prediction retrains.",
+            "stdout": result.stdout,
+            "durationMs": duration_ms,
+        })
 
 
 def run_server(port=8000):
