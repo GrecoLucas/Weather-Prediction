@@ -1,20 +1,14 @@
 import argparse
-import hashlib
 import os
-import re
 
 import numpy as np
 import pandas as pd
-from joblib import dump, load
-from sklearn.ensemble import RandomForestRegressor
-from sklearn.impute import SimpleImputer
-from sklearn.linear_model import LinearRegression
+from joblib import load
 from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
 
 
 MODULE_DIR = os.path.dirname(os.path.abspath(__file__))
 ARTIFACT_DIR = os.path.join(MODULE_DIR, "saved_models")
-ARTIFACT_VERSION = 1
 TIME_COL = "time"
 TEMP_COL = "temperature_2m"
 DEW_COL = "dew_point_2m"
@@ -50,10 +44,10 @@ def load_temperature_data(filepath, excluded_features=None):
         data = data.sort_values(time_col).reset_index(drop=True)
 
     for col in data.columns:
-        if col != time_col:
+        if col != time_col and col != "location":
             data[col] = _safe_numeric(data[col])
 
-    base_drop_cols = [c for c in [temp_col, time_col] if c in data.columns]
+    base_drop_cols = [c for c in [temp_col, time_col, "location"] if c in data.columns]
     feature_df = data.drop(columns=base_drop_cols).copy()
     feature_df = feature_df.dropna(axis=1, how="all")
 
@@ -118,8 +112,8 @@ def load_temperature_data(filepath, excluded_features=None):
     else:
         raise ValueError("A valid 'time' column is required for day-based predictions.")
 
-    if "location" in raw_df.columns:
-        context["location"] = raw_df.loc[trainable.index, "location"].astype(str)
+    if "location" in data.columns:
+        context["location"] = data.loc[trainable.index, "location"].astype(str)
 
     context["actual_next_temperature"] = y
 
@@ -178,68 +172,6 @@ def list_saved_temperature_models():
     return saved_models
 
 
-def _make_model(model_family):
-    family = model_family.lower()
-
-    if family == "rf":
-        return RandomForestRegressor(
-            n_estimators=450,
-            max_depth=16,
-            min_samples_leaf=2,
-            random_state=42,
-            n_jobs=-1,
-        )
-
-    if family == "xgb":
-        from xgboost import XGBRegressor
-
-        return XGBRegressor(
-            n_estimators=400,
-            max_depth=6,
-            learning_rate=0.05,
-            subsample=0.8,
-            colsample_bytree=0.8,
-            random_state=42,
-            n_jobs=-1,
-        )
-
-    if family == "lgbm":
-        from lightgbm import LGBMRegressor
-
-        return LGBMRegressor(
-            n_estimators=1200,
-            learning_rate=0.03,
-            num_leaves=63,
-            min_child_samples=50,
-            subsample=0.8,
-            colsample_bytree=0.7,
-            reg_alpha=0.1,
-            reg_lambda=1.0,
-            force_col_wise=True,
-            verbosity=-1,
-            random_state=42,
-            n_jobs=-1,
-        )
-
-    if family == "lr":
-        return LinearRegression()
-
-    raise ValueError(f"Unsupported model family: {model_family}")
-
-
-def _fit_model(model_family, model, X_train, y_train, X_val, y_val):
-    family = model_family.lower()
-
-    if family == "xgb" and X_val is not None and y_val is not None and len(X_val) > 0:
-        model.fit(X_train, y_train, eval_set=[(X_val, y_val)], verbose=False)
-    elif family == "lgbm" and X_val is not None and y_val is not None and len(X_val) > 0:
-        model.fit(X_train, y_train, eval_set=[(X_val, y_val)], eval_metric="l2")
-    else:
-        model.fit(X_train, y_train)
-
-    return model
-
-
 def _regression_metrics(y_true, y_pred):
     rmse = mean_squared_error(y_true, y_pred) ** 0.5
     return {
@@ -247,43 +179,6 @@ def _regression_metrics(y_true, y_pred):
         "rmse": float(rmse),
         "r2": float(r2_score(y_true, y_pred)),
     }
-
-
-def _build_future_feature_row(base_row, columns, temperature_history, row_time):
-    row = base_row.copy()
-
-    for h in [1, 2, 3, 6, 12, 24, 48, 72, 96]:
-        if f"temp_lag_{h}" in columns and len(temperature_history) >= h:
-            row[f"temp_lag_{h}"] = float(temperature_history[-h])
-
-    for h in [24, 48, 72, 96]:
-        if len(temperature_history) >= h:
-            window = np.array(temperature_history[-h:], dtype=float)
-            if f"temp_roll_mean_{h}" in columns:
-                row[f"temp_roll_mean_{h}"] = float(np.mean(window))
-            if f"temp_roll_std_{h}" in columns:
-                row[f"temp_roll_std_{h}"] = float(np.std(window))
-            if f"temp_roll_min_{h}" in columns:
-                row[f"temp_roll_min_{h}"] = float(np.min(window))
-            if f"temp_roll_max_{h}" in columns:
-                row[f"temp_roll_max_{h}"] = float(np.max(window))
-
-    if "hour" in columns:
-        row["hour"] = row_time.hour
-    if "dayofweek" in columns:
-        row["dayofweek"] = row_time.dayofweek
-    if "month" in columns:
-        row["month"] = row_time.month
-    if "day" in columns:
-        row["day"] = row_time.day
-    if "year" in columns:
-        row["year"] = row_time.year
-
-    if "monthly_temp_mean" in columns and len(temperature_history) > 0:
-        window = temperature_history[-720:] if len(temperature_history) >= 720 else temperature_history
-        row["monthly_temp_mean"] = float(np.mean(window))
-
-    return row
 
 
 def _load_raw_weather_data(filepath):
@@ -478,85 +373,12 @@ def _forecast_future_with_profiles(filepath, location, selected_day, last_hist_t
     return selected_predictions
 
 
-def _sanitize_cache_component(value):
-    if not value:
-        return "all"
-    return re.sub(r"[^a-z0-9._-]+", "_", str(value).strip().lower()).strip("_") or "all"
-
-
-def _artifact_path(filepath, model_family, location, excluded_features):
-    dataset_name = os.path.splitext(os.path.basename(filepath))[0]
-    location_key = _sanitize_cache_component(location)
-    feature_key = hashlib.sha1("|".join(sorted(excluded_features or [])).encode("utf-8")).hexdigest()[:10]
-    file_name = f"{_sanitize_cache_component(dataset_name)}_{model_family}_{location_key}_{feature_key}.joblib"
-    return os.path.join(ARTIFACT_DIR, file_name)
-
-
-def _validation_split(X_hist, y_hist):
-    split_idx = max(1, int(len(X_hist) * 0.9))
-    if split_idx >= len(X_hist):
-        split_idx = len(X_hist) - 1
-    if split_idx <= 0:
-        raise ValueError("Not enough historical rows to create validation split.")
-
-    X_train = X_hist.iloc[:split_idx]
-    y_train = y_hist.iloc[:split_idx]
-    X_val = X_hist.iloc[split_idx:]
-    y_val = y_hist.iloc[split_idx:]
-    return X_train, y_train, X_val, y_val
-
-
-def _train_model_bundle(model_family, X_fit_imputed, y_fit, X_eval_imputed=None, y_eval=None):
-    family = model_family.lower()
-
-    if family == "vote":
-        models = []
-        for item in ["rf", "xgb", "lgbm"]:
-            model = _make_model(item)
-            model = _fit_model(item, model, X_fit_imputed, y_fit, X_eval_imputed, y_eval)
-            models.append((item, model))
-        return {"type": "vote", "models": models}
-
-    model = _make_model(family)
-    model = _fit_model(family, model, X_fit_imputed, y_fit, X_eval_imputed, y_eval)
-    return {"type": "single", "family": family, "model": model}
-
-
 def _predict_model_bundle(model_bundle, X_pred_imputed):
     if model_bundle["type"] == "vote":
         predictions = [model.predict(X_pred_imputed) for _, model in model_bundle["models"]]
         return np.mean(np.column_stack(predictions), axis=1)
 
     return model_bundle["model"].predict(X_pred_imputed)
-
-
-def _model_bundle_name(model_bundle):
-    if model_bundle["type"] == "vote":
-        return "Voting (RF + XGB + LGBM)"
-    return model_bundle["model"].__class__.__name__
-
-
-def _load_saved_artifact(artifact_path, filepath, model_family, location, excluded_features):
-    if not os.path.exists(artifact_path):
-        return None
-
-    artifact = load(artifact_path)
-    dataset_mtime_ns = os.stat(filepath).st_mtime_ns
-
-    if artifact.get("artifactVersion") != ARTIFACT_VERSION:
-        return None
-    if artifact.get("datasetPath") != os.path.abspath(filepath):
-        return None
-    if artifact.get("datasetMtimeNs") != dataset_mtime_ns:
-        return None
-    if artifact.get("modelFamily") != model_family:
-        return None
-    if artifact.get("location") != str(location or ""):
-        return None
-    if artifact.get("excludedFeatures") != list(excluded_features or []):
-        return None
-
-    return artifact
 
 
 def _load_selected_saved_model(saved_model_name):
@@ -591,93 +413,18 @@ def _artifact_model_bundle(artifact):
     raise ValueError("Saved artifact does not contain a usable model.")
 
 
-def _train_and_persist_artifact(filepath, model_family, location, excluded_features, X_hist, y_hist):
-    X_train, y_train, X_val, y_val = _validation_split(X_hist, y_hist)
-
-    eval_imputer = SimpleImputer(strategy="median")
-    X_train_eval = pd.DataFrame(eval_imputer.fit_transform(X_train), index=X_train.index, columns=X_train.columns)
-    X_val_eval = pd.DataFrame(eval_imputer.transform(X_val), index=X_val.index, columns=X_val.columns)
-    validation_bundle = _train_model_bundle(model_family, X_train_eval, y_train, X_val_eval, y_val)
-    val_pred = _predict_model_bundle(validation_bundle, X_val_eval)
-    validation = _regression_metrics(y_val, val_pred)
-
-    final_imputer = SimpleImputer(strategy="median")
-    X_hist_final = pd.DataFrame(final_imputer.fit_transform(X_hist), index=X_hist.index, columns=X_hist.columns)
-    final_bundle = _train_model_bundle(model_family, X_hist_final, y_hist)
-
-    artifact_path = _artifact_path(filepath, model_family, location, excluded_features)
-    os.makedirs(ARTIFACT_DIR, exist_ok=True)
-    artifact = {
-        "artifactVersion": ARTIFACT_VERSION,
-        "datasetPath": os.path.abspath(filepath),
-        "datasetMtimeNs": os.stat(filepath).st_mtime_ns,
-        "modelFamily": model_family,
-        "location": str(location or ""),
-        "excludedFeatures": list(excluded_features or []),
-        "featureColumns": list(X_hist.columns),
-        "imputer": final_imputer,
-        "modelBundle": final_bundle,
-        "validation": validation,
-        "modelName": _model_bundle_name(final_bundle),
-        "artifactPath": artifact_path,
-        "trainedAt": pd.Timestamp.utcnow().isoformat(),
-    }
-    dump(artifact, artifact_path)
-    return artifact
-
-
-def _get_or_train_artifact(filepath, model_family, location, excluded_features, X_hist, y_hist):
-    artifact_path = _artifact_path(filepath, model_family, location, excluded_features)
-    artifact = _load_saved_artifact(artifact_path, filepath, model_family, location, excluded_features)
-    if artifact is not None:
-        return artifact, True
-    return _train_and_persist_artifact(filepath, model_family, location, excluded_features, X_hist, y_hist), False
-
-
-def _predict_with_family(model_family, X_train_imputed, y_train, X_val_imputed, y_val, X_hist_imputed, X_pred_imputed):
-    family = model_family.lower()
-
-    if family == "vote":
-        base_families = ["rf", "xgb", "lgbm"]
-        val_pred_list = []
-        pred_list = []
-        for item in base_families:
-            model = _make_model(item)
-            model = _fit_model(item, model, X_train_imputed, y_train, X_val_imputed, y_val)
-            val_pred_list.append(model.predict(X_val_imputed))
-
-            # Refit on all historical rows before final prediction.
-            model = _fit_model(item, model, X_hist_imputed, pd.concat([y_train, y_val]), X_val_imputed, y_val)
-            pred_list.append(model.predict(X_pred_imputed))
-
-        val_pred = np.mean(np.column_stack(val_pred_list), axis=1)
-        y_pred = np.mean(np.column_stack(pred_list), axis=1)
-        model_name = "Voting (RF + XGB + LGBM)"
-        return val_pred, y_pred, model_name
-
-    model = _make_model(family)
-    model = _fit_model(family, model, X_train_imputed, y_train, X_val_imputed, y_val)
-    val_pred = model.predict(X_val_imputed)
-
-    # Refit on all available historical rows before forecasting.
-    model = _fit_model(family, model, X_hist_imputed, pd.concat([y_train, y_val]), X_val_imputed, y_val)
-    y_pred = model.predict(X_pred_imputed)
-    model_name = model.__class__.__name__
-    return val_pred, y_pred, model_name
-
-
 def predict_temperature_for_day(
     filepath,
     selected_date,
     location="",
-    model_family="lgbm",
     excluded_features=None,
     saved_model_name=None,
 ):
-    selected_artifact = None
-    if saved_model_name:
-        selected_artifact = _load_selected_saved_model(saved_model_name)
-        excluded_features = selected_artifact.get("excludedFeatures") or selected_artifact.get("excluded_features") or excluded_features
+    if not saved_model_name:
+        raise ValueError("A saved model must be selected for temperature prediction.")
+
+    selected_artifact = _load_selected_saved_model(saved_model_name)
+    excluded_features = selected_artifact.get("excludedFeatures") or selected_artifact.get("excluded_features") or excluded_features
 
     excluded_features = excluded_features or ["dayofweek", "day", "wind_speed_10m", "time", "year"]
     X, y, context, _ = load_temperature_data(filepath=filepath, excluded_features=excluded_features)
@@ -722,7 +469,7 @@ def predict_temperature_for_day(
 
     if train_mask.sum() < 200:
         raise ValueError(
-            f"Not enough historical rows before {selected_day.date()} to train"
+            f"Not enough historical rows before {selected_day.date()} to predict"
             f"{f' for {location}' if location else ''}. Found {int(train_mask.sum())}."
         )
 
@@ -732,56 +479,18 @@ def predict_temperature_for_day(
     y_actual = y.loc[prediction_mask] if not is_future_forecast else pd.Series(dtype=float)
     pred_context = context.loc[prediction_mask].copy() if not is_future_forecast else pd.DataFrame()
 
-    if selected_artifact is not None:
-        loaded_from_cache = True
-        validation = _artifact_validation(selected_artifact)
-        model_name = _artifact_model_name(selected_artifact)
-        imputer = selected_artifact.get("imputer")
-        if imputer is None:
-            raise ValueError("Saved artifact does not contain an imputer.")
-        model_bundle = _artifact_model_bundle(selected_artifact)
-        feature_columns = _artifact_feature_columns(selected_artifact)
-        if not feature_columns:
-            raise ValueError("Saved artifact does not contain feature columns.")
+    loaded_from_cache = True
+    validation = _artifact_validation(selected_artifact)
+    model_name = _artifact_model_name(selected_artifact)
+    imputer = selected_artifact.get("imputer")
+    if imputer is None:
+        raise ValueError("Saved artifact does not contain an imputer.")
+    model_bundle = _artifact_model_bundle(selected_artifact)
+    feature_columns = _artifact_feature_columns(selected_artifact)
+    if not feature_columns:
+        raise ValueError("Saved artifact does not contain feature columns.")
 
-        if is_future_forecast:
-            last_hist_time = context.loc[train_mask, "time"].max()
-            if pd.isna(last_hist_time):
-                raise ValueError("Could not determine last historical timestamp for future forecasting.")
-
-            target_end = selected_day + pd.Timedelta(hours=23)
-            if target_end <= last_hist_time:
-                raise ValueError("Selected day is not in the future.")
-            hourly_rows = _forecast_future_with_profiles(
-                filepath=filepath,
-                location=location,
-                selected_day=selected_day,
-                last_hist_time=last_hist_time,
-                X_hist=X_hist,
-                y_hist=y_hist,
-                feature_columns=feature_columns,
-                imputer=imputer,
-                model_bundle=model_bundle,
-            )
-            y_pred = np.array([row["predictedTemperature"] for row in hourly_rows], dtype=float)
-            pred_context = pd.DataFrame(hourly_rows)
-        else:
-            X_pred_imputed = pd.DataFrame(imputer.transform(X_pred.reindex(columns=feature_columns)), index=X_pred.index, columns=feature_columns)
-            y_pred = _predict_model_bundle(model_bundle, X_pred_imputed)
-    elif is_future_forecast:
-        artifact, loaded_from_cache = _get_or_train_artifact(
-            filepath=filepath,
-            model_family=model_family,
-            location=location,
-            excluded_features=excluded_features,
-            X_hist=X_hist,
-            y_hist=y_hist,
-        )
-        validation = artifact["validation"]
-        model_name = artifact["modelName"]
-        imputer = artifact["imputer"]
-        model_bundle = artifact["modelBundle"]
-
+    if is_future_forecast:
         last_hist_time = context.loc[train_mask, "time"].max()
         if pd.isna(last_hist_time):
             raise ValueError("Could not determine last historical timestamp for future forecasting.")
@@ -796,27 +505,15 @@ def predict_temperature_for_day(
             last_hist_time=last_hist_time,
             X_hist=X_hist,
             y_hist=y_hist,
-            feature_columns=artifact["featureColumns"],
+            feature_columns=feature_columns,
             imputer=imputer,
             model_bundle=model_bundle,
         )
         y_pred = np.array([row["predictedTemperature"] for row in hourly_rows], dtype=float)
         pred_context = pd.DataFrame(hourly_rows)
     else:
-        loaded_from_cache = False
-        X_train, y_train, X_val, y_val = _validation_split(X_hist, y_hist)
-        imputer = SimpleImputer(strategy="median")
-        X_train_imputed = pd.DataFrame(imputer.fit_transform(X_train), index=X_train.index, columns=X_train.columns)
-        X_val_imputed = pd.DataFrame(imputer.transform(X_val), index=X_val.index, columns=X_val.columns)
-        X_hist_imputed = pd.DataFrame(imputer.transform(X_hist), index=X_hist.index, columns=X_hist.columns)
-        X_pred_imputed = pd.DataFrame(imputer.transform(X_pred), index=X_pred.index, columns=X_pred.columns)
-        val_bundle = _train_model_bundle(model_family, X_train_imputed, y_train, X_val_imputed, y_val)
-        val_pred = _predict_model_bundle(val_bundle, X_val_imputed)
-        validation = _regression_metrics(y_val, val_pred)
-
-        final_bundle = _train_model_bundle(model_family, X_hist_imputed, y_hist)
-        y_pred = _predict_model_bundle(final_bundle, X_pred_imputed)
-        model_name = _model_bundle_name(final_bundle)
+        X_pred_imputed = pd.DataFrame(imputer.transform(X_pred.reindex(columns=feature_columns)), index=X_pred.index, columns=feature_columns)
+        y_pred = _predict_model_bundle(model_bundle, X_pred_imputed)
 
     day_metrics = _regression_metrics(y_actual, y_pred) if not is_future_forecast else None
 
@@ -851,7 +548,7 @@ def predict_temperature_for_day(
         "hourly": hourly_rows,
         "trainingSamples": int(len(X_hist)),
         "totalHours": int(len(hourly_rows)),
-        "artifactPath": selected_artifact.get("artifactPath") if selected_artifact is not None else (artifact.get("artifactPath") if is_future_forecast else None),
+        "artifactPath": selected_artifact.get("artifactPath"),
     }
 
 
@@ -860,12 +557,7 @@ def _build_parser():
     parser.add_argument("--dataset-path", required=True, help="Path to meteorology dataset.")
     parser.add_argument("--selected-date", required=True, help="Date to predict (YYYY-MM-DD).")
     parser.add_argument("--location", default="", help="Optional location filter.")
-    parser.add_argument(
-        "--model-family",
-        default="lgbm",
-        choices=["lr", "rf", "xgb", "lgbm", "vote"],
-        help="Temperature model family.",
-    )
+    parser.add_argument("--saved-model", required=True, help="Saved model filename from level2/saved_models.")
     return parser
 
 
@@ -877,7 +569,7 @@ def main():
         filepath=args.dataset_path,
         selected_date=args.selected_date,
         location=args.location,
-        model_family=args.model_family,
+        saved_model_name=args.saved_model,
     )
 
     print("Level 2 temperature prediction")

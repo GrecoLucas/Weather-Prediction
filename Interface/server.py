@@ -348,7 +348,7 @@ class DashboardHandler(SimpleHTTPRequestHandler):
         dataset_path = self._resolve_dataset_path(payload.get("datasetPath"))
         selected_date = str(payload.get("selectedDate") or "").strip()
         location = str(payload.get("location") or "").strip()
-        saved_model = str(payload.get("savedModel") or payload.get("modelFamily") or "").strip()
+        saved_model = str(payload.get("savedModel") or "").strip()
 
         if not selected_date:
             self._send_json(400, {"error": "selectedDate is required."})
